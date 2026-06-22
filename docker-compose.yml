@@ -1,0 +1,34 @@
+services:
+  # The protected application. Note: NO `ports:` mapping — it is never published
+  # to the host or the internet. Only the gateway, sharing the internal network,
+  # can reach it. This is the network half of the trust boundary; the Gateway
+  # signature is the cryptographic half.
+  upstream:
+    build:
+      context: .
+      dockerfile: Dockerfile.upstream
+    environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET}
+    networks: [internal]
+
+  # The only exposed surface. Verifies provider signatures, attaches the Gateway
+  # signature, forwards to the upstream by its service name over the internal net.
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on: [upstream]
+    ports:
+      - "9000:9000"
+    environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET}
+      STRIPE_SECRET: ${STRIPE_SECRET:?set STRIPE_SECRET}
+      GITHUB_SECRET: ${GITHUB_SECRET:?set GITHUB_SECRET}
+      SHOPIFY_SECRET: ${SHOPIFY_SECRET:?set SHOPIFY_SECRET}
+    volumes:
+      - ./config.docker.json:/config.json:ro
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
