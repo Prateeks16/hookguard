@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -15,20 +15,21 @@ type Verifier interface {
 	Verify(rawBody []byte, h http.Header, now time.Time) error
 }
 
-// buildVerifier constructs the Verifier for a Route, reading its secret from the
-// environment. Fails fast on missing secret, bad replay window, or a provider
-// with no implementation yet.
-func buildVerifier(r Route) (Verifier, error) {
-	secret := os.Getenv(r.SecretEnv)
+// buildVerifier constructs the Verifier for a provider from an already-resolved
+// secret and replay window. It is pure — no environment access — so all of its
+// branches (empty secret, bad replay window, unknown provider, per-provider
+// dispatch) are unit-testable. The caller (main) resolves the secret from the
+// environment and passes it in.
+func buildVerifier(provider, secret, replayWindow string) (Verifier, error) {
 	if secret == "" {
-		return nil, fmt.Errorf("missing secret env %s", r.SecretEnv)
+		return nil, errors.New("empty secret")
 	}
-	window, err := parseWindow(r.ReplayWindow)
+	window, err := parseWindow(replayWindow)
 	if err != nil {
 		return nil, fmt.Errorf("replay_window: %w", err)
 	}
 
-	switch r.Provider {
+	switch provider {
 	case "stripe":
 		return StripeVerifier{Secret: []byte(secret), ReplayWindow: window}, nil
 	case "github":
@@ -36,7 +37,7 @@ func buildVerifier(r Route) (Verifier, error) {
 	case "shopify":
 		return ShopifyVerifier{Secret: []byte(secret)}, nil
 	default:
-		return nil, fmt.Errorf("unknown provider %q", r.Provider)
+		return nil, fmt.Errorf("unknown provider %q", provider)
 	}
 }
 

@@ -25,9 +25,11 @@ func main() {
 	client := &http.Client{Timeout: 30 * time.Second}
 	mux := http.NewServeMux()
 	for _, r := range cfg.Routes {
-		v, err := buildVerifier(r)
+		// Resolve the secret from the environment here, then hand the pure
+		// factory already-resolved values.
+		v, err := buildVerifier(r.Provider, os.Getenv(r.SecretEnv), r.ReplayWindow)
 		if err != nil {
-			log.Fatalf("route %s: %v", r.Path, err)
+			log.Fatalf("route %s (secret env %s): %v", r.Path, r.SecretEnv, err)
 		}
 		mux.HandleFunc(r.Path, makeHandler(r, v, internalSecret, client))
 		log.Printf("route %s [%s] -> %s", r.Path, r.Provider, r.Upstream)
