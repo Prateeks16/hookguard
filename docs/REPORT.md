@@ -113,6 +113,21 @@ that takes an already-resolved secret, so its branching is unit-testable (see §
 The oracle libraries are **test-only**: `go list -deps . | grep -E 'stripe|go-github'`
 is empty, confirming the shipped binary remains zero-dependency.
 
+**Validation strength (stated honestly).** Stripe and GitHub are cross-checked
+against the providers' own official libraries, so their correctness is
+*independently* established. Shopify implements the documented algorithm but is
+verified only against an independent re-implementation of that same documented
+scheme — strong, but not a check against Shopify's own code. All tests use
+synthetic payloads signed with each provider's algorithm; the suite has not yet
+been run against real captured webhooks or vendor-published test vectors, which
+would be the next step to raise assurance further (and is the right way to add a
+provider that has no official Go library).
+
+**Live demonstration.** `demo.sh` starts the gateway and a sample upstream and
+fires the full threat-model matrix — a valid webhook (`200 ok`), then tampered,
+wrong-secret, stale-timestamp, and a direct-to-upstream forgery (all `401`) —
+followed by the differential harness. Reproducible with `bash demo.sh`.
+
 ## 7. Competitive Positioning (honest)
 
 The technical problem is real and the market is mature: Hookdeck (managed, 120+
@@ -156,6 +171,8 @@ Step-by-step record, updated as issues are resolved.
   function of provider/secret/replay-window). Added `verifier_test.go` covering all
   four factory branches. Closes the project's one previously-untested piece of
   logic. *Resolved.*
+- **Demo.** Added `demo.sh` — a reproducible live walkthrough of the threat model
+  plus the differential harness.
 
 ## References
 
