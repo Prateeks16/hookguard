@@ -1072,3 +1072,144 @@ into a single Gateway-signature check for the upstream, proves its verifiers
 correct against the providers' own libraries, and deploys as two tiny isolated
 containers. Every rule in this guide is backed by a test you can run with
 `go test ./...`.
+
+---
+
+## 18. PayPal verifier (asymmetric RSA, and the guard it requires)
+
+The first three providers all share one shape: a symmetric secret, an HMAC over
+the body (or a timestamp-prefixed body), compared in constant time. PayPal is
+different in kind, not just detail:
+
+- **No shared secret.** PayPal signs with a private key only PayPal holds; you
+  verify with PayPal's matching *public* certificate, fetched at runtime from a
+  URL PayPal sends in a header.
+- **The signed message is not the body.** It is
+  `transmissionId|transmissionTime|webhookId|crc32(body)` — the body enters the
+  message only as a CRC32 checksum, not its raw bytes.
+- **`webhookId` is config, not a secret.** It identifies which webhook
+  subscription you registered with PayPal; it is not sensitive and does not
+  belong in `secret_env`.
+
+PayPal's headers: `paypal-transmission-id`, `paypal-transmission-time`,
+`paypal-transmission-sig` (base64), `paypal-cert-url`, `paypal-auth-algo`
+(must be `SHA256withRSA` — anything else is rejected, since that is the only
+algorithm this verifier implements).
+
+**The SSRF guard — the most important line in this provider.** `paypal-cert-url`
+is a header on an *inbound* request, which makes it attacker-controlled input.
+If HookGuard fetched whatever URL a request supplied and trusted whatever
+certificate came back, an attacker could supply their own certificate (and
+their own private key) and forge any signature this verifier would accept —
+the entire check would be worthless. So before any fetch happens, the host is
+pinned to a PayPal-owned domain:
+
+```go
+// checkPaypalCertHost pins paypal-cert-url to a PayPal-owned host, and
+// requires https, before any network fetch happens.
+func checkPaypalCertHost(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid paypal-cert-url: %w", err)
+	}
+	if u.Scheme != "https" {
+		return errors.New("paypal-cert-url must be https")
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, domain := range paypalCertHostAllowlist {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return nil
+		}
+	}
+	return fmt.Errorf("paypal-cert-url host %q is not a trusted PayPal host", host)
+}
+```
+
+Matching on a hostname *suffix* (`strings.HasSuffix(host, ".paypal.com")`)
+rather than `strings.Contains` is deliberate — `evil-paypal.com` and
+`paypal.com.evil.com` must both be rejected; only `paypal.com` itself or any
+subdomain of it (`api.paypal.com`, `api.sandbox.paypal.com`, …) passes.
+
+Once the host is pinned, the fetched response is parsed as one or more PEM
+certificates and the leaf is required to **chain to a trusted root**
+(`leaf.Verify(x509.VerifyOptions{Intermediates: intermediates})`, using the
+system root pool) — a host-pin alone is not enough; the cert itself must be
+genuinely PayPal-issued, not merely served from a URL that resembled a PayPal
+URL. The parsed, validated certificate is cached per cert-URL (a
+`sync.RWMutex`-guarded map with a one-hour TTL in `paypal.go`) so concurrent
+webhooks don't each pay for a fetch.
+
+The signature check itself is the part that mirrors PayPal's documented
+algorithm exactly:
+
+```go
+func paypalSigMessage(transmissionID, transmissionTime, webhookID string, body []byte) string {
+	crc := crc32.ChecksumIEEE(body)
+	return fmt.Sprintf("%s|%s|%s|%d", transmissionID, transmissionTime, webhookID, crc)
+}
+
+func verifyPaypalSignature(pub *rsa.PublicKey, transmissionID, transmissionTime, webhookID string, body []byte, sigB64 string) error {
+	sig, err := base64.StdEncoding.DecodeString(sigB64)
+	if err != nil {
+		return errors.New("invalid paypal-transmission-sig encoding")
+	}
+	digest := sha256.Sum256([]byte(paypalSigMessage(transmissionID, transmissionTime, webhookID, body)))
+	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig); err != nil {
+		return errors.New("signature mismatch")
+	}
+	return nil
+}
+```
+
+This is offline verification — no call to PayPal's
+`/v1/notifications/verify-webhook-signature` API. Calling that endpoint per
+webhook would add latency, double network traffic, introduce a runtime
+dependency on PayPal's API being reachable, and — concretely — break PayPal's
+own webhook simulator and any local/mock testing, since the simulator's events
+aren't always independently verifiable through that endpoint. Offline RSA also
+keeps the zero-dependency property: `crypto/x509`, `crypto/rsa`, `crypto/sha256`,
+`hash/crc32`, `encoding/base64`, `encoding/pem`, `net/url` are all standard
+library.
+
+**The factory (`buildVerifier` in `verifier.go`) had to widen, not just grow a
+case.** Every existing branch only needed a secret string. PayPal needs no
+secret but does need an `*http.Client` (to fetch the certificate) — a fourth
+scalar parameter would have started a pattern that gets worse with every future
+provider. Instead `buildVerifier` now takes the whole `Route` plus a small
+`verifierDeps{Client *http.Client}` struct, and each provider validates only
+the config it actually needs:
+
+```go
+case "paypal":
+	if r.WebhookID == "" {
+		return nil, errors.New("missing webhook_id")
+	}
+	return NewPayPalVerifier(r.WebhookID, deps.Client), nil
+```
+
+**Testing this honestly.** There is no official PayPal Go library, so the
+differential-harness approach used for Stripe and GitHub (§14) — diffing
+against the provider's own SDK — does not apply. What's tested instead, in
+`paypal_test.go`:
+
+- A **roundtrip test**: generate an RSA keypair locally, sign exactly as PayPal
+  documents, assert `verifyPaypalSignature` passes — then assert it rejects a
+  tampered body, the wrong key, the wrong `webhookId`, and a malformed
+  signature encoding.
+- An **SSRF test**: a table of cert URLs (wrong scheme, wrong host, suffix-
+  confusion attempts like `paypal.com.evil.com`) asserting `checkPaypalCertHost`
+  rejects every one of them before any fetch could happen.
+- A **chain-rejection test**: a self-signed certificate (standing in for an
+  attacker-supplied one) is asserted to fail `parsePaypalCertChain`, proving the
+  chain-validation step actually enforces something.
+
+What is *not* tested here, because it needs a live PayPal sandbox account and
+webhook simulator: the full pipeline fetching a real certificate from a real
+`paypal-cert-url` and verifying a genuinely PayPal-signed event end to end.
+That gap is recorded honestly in `docs/REPORT.md` as a manual step, not a CI
+test — the right way to add assurance for a provider with no official library.
+
+HookGuard now verifies four providers — three symmetric, one asymmetric —
+behind the same unchanged `Verifier` interface and gateway code. That is the
+seam doing its job: a fundamentally different signature scheme needed a new
+file and one factory branch, nothing else.

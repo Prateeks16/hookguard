@@ -27,7 +27,7 @@ func main() {
 	for _, r := range cfg.Routes {
 		// Resolve the secret from the environment here, then hand the pure
 		// factory already-resolved values.
-		v, err := buildVerifier(r.Provider, os.Getenv(r.SecretEnv), r.ReplayWindow)
+		v, err := buildVerifier(r, os.Getenv(r.SecretEnv), verifierDeps{Client: client})
 		if err != nil {
 			log.Fatalf("route %s (secret env %s): %v", r.Path, r.SecretEnv, err)
 		}

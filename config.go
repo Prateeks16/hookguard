@@ -11,8 +11,9 @@ type Route struct {
 	Path         string `json:"path"`
 	Provider     string `json:"provider"`
 	Upstream     string `json:"upstream"`
-	ReplayWindow string `json:"replay_window"` // parsed in Day 2 (time.ParseDuration)
-	SecretEnv    string `json:"secret_env"`    // used in Day 2
+	ReplayWindow string `json:"replay_window"`        // parsed in Day 2 (time.ParseDuration)
+	SecretEnv    string `json:"secret_env"`           // used in Day 2
+	WebhookID    string `json:"webhook_id,omitempty"` // PayPal only: webhook subscription ID, not a secret
 }
 
 type Config struct {

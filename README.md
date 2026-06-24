@@ -2,8 +2,8 @@
 
 A self-hosted gateway that verifies inbound webhook signatures at the network
 edge and forwards only authenticated traffic to your application. Zero external
-dependencies in the shipped binary; single static binary; Stripe, GitHub, and
-Shopify supported.
+dependencies in the shipped binary; single static binary; Stripe, GitHub,
+Shopify, and PayPal supported.
 
 ## Why
 
@@ -16,8 +16,9 @@ the Gateway signature — instead of implementing N bespoke verifiers.
 ```
                           verifies provider signature
    Stripe ─┐              attaches Gateway signature
-   GitHub ─┼──▶  HookGuard  ───────────────────────▶  Your app
-   Shopify─┘   (port 9000)        internal network     (verifies ONE signature)
+   GitHub ─┤
+   Shopify─┼──▶  HookGuard  ───────────────────────▶  Your app
+   PayPal ─┘   (port 9000)        internal network     (verifies ONE signature)
                                   app is NOT exposed
 ```
 
@@ -26,8 +27,10 @@ the Gateway signature — instead of implementing N bespoke verifiers.
 1. A provider POSTs a signed webhook to `/hook/<provider>`.
 2. HookGuard reads the **raw body** (never parsing it — parsing then
    re-serializing would change the bytes and break the signature) and verifies
-   the provider's signature: HMAC compare in constant time, plus a replay-window
-   check where the provider includes a timestamp (Stripe).
+   the provider's signature: HMAC compare in constant time for the symmetric
+   providers, or an RSA-SHA256 check against PayPal's published certificate for
+   PayPal, plus a replay-window check where the provider includes a timestamp
+   (Stripe).
 3. On success it re-signs the body with a single `INTERNAL_SECRET` (the **Gateway
    signature**, binding the verified provider name) and forwards the unchanged
    bytes upstream. On failure it returns `401` and forwards nothing.
@@ -95,6 +98,19 @@ themselves live in the environment, never in the file):
 }
 ```
 
+PayPal has no shared secret — it verifies asymmetrically against PayPal's own
+certificate — so its route carries `webhook_id` (the webhook subscription ID
+from your PayPal listener, not a secret) instead of `secret_env`:
+
+```json
+{
+  "path": "/hook/paypal",
+  "provider": "paypal",
+  "upstream": "http://upstream:8080/paypal",
+  "webhook_id": "WH-CHANGE-ME"
+}
+```
+
 ## Tests
 
 ```sh
@@ -117,6 +133,7 @@ go list -deps . | grep -E 'stripe|go-github'   # prints nothing
 | Stripe  | `Stripe-Signature` | HMAC-SHA256 hex | timestamped (`t=,v1=`), replay window |
 | GitHub  | `X-Hub-Signature-256` | HMAC-SHA256 hex | `sha256=` prefix, raw UTF-8 |
 | Shopify | `X-Shopify-Hmac-SHA256` | HMAC-SHA256 base64 | base64-encoded output |
+| PayPal  | `paypal-transmission-sig` (+`-id`/`-time`/`-cert-url`) | RSA-SHA256 (asymmetric) | cert fetched from `paypal-cert-url`, host-pinned to `*.paypal.com` and chain-validated before use; configured via `webhook_id`, no shared secret |
 
 ## Documentation
 
