@@ -3,27 +3,29 @@ package main
 import "testing"
 
 // TestBuildVerifier exercises the pure factory directly — no environment
-// mutation needed. Covers all four branches: empty secret, bad replay window,
-// unknown provider, and correct per-provider dispatch.
+// mutation, no network access needed. Covers: empty secret, bad replay
+// window, unknown provider, missing webhook_id, and correct per-provider
+// dispatch (including PayPal, which validates webhook_id instead of secret).
 func TestBuildVerifier(t *testing.T) {
 	cases := []struct {
-		name     string
-		provider string
-		secret   string
-		window   string
-		wantErr  bool
+		name    string
+		route   Route
+		secret  string
+		wantErr bool
 	}{
-		{"stripe ok", "stripe", "s", "5m", false},
-		{"github ok", "github", "s", "", false},
-		{"shopify ok", "shopify", "s", "", false},
-		{"empty secret", "stripe", "", "5m", true},
-		{"bad replay window", "stripe", "s", "5parsecs", true},
-		{"unknown provider", "paypal", "s", "", true},
+		{"stripe ok", Route{Provider: "stripe", ReplayWindow: "5m"}, "s", false},
+		{"github ok", Route{Provider: "github"}, "s", false},
+		{"shopify ok", Route{Provider: "shopify"}, "s", false},
+		{"paypal ok", Route{Provider: "paypal", WebhookID: "WH-123"}, "", false},
+		{"empty secret", Route{Provider: "stripe", ReplayWindow: "5m"}, "", true},
+		{"bad replay window", Route{Provider: "stripe", ReplayWindow: "5parsecs"}, "s", true},
+		{"paypal missing webhook_id", Route{Provider: "paypal"}, "", true},
+		{"unknown provider", Route{Provider: "twilio"}, "s", true},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			v, err := buildVerifier(c.provider, c.secret, c.window)
+			v, err := buildVerifier(c.route, c.secret, verifierDeps{})
 			if (err != nil) != c.wantErr {
 				t.Fatalf("wantErr=%v got %v", c.wantErr, err)
 			}
@@ -34,7 +36,7 @@ func TestBuildVerifier(t *testing.T) {
 	}
 
 	// Dispatch lands on the right concrete type.
-	v, err := buildVerifier("stripe", "s", "5m")
+	v, err := buildVerifier(Route{Provider: "stripe", ReplayWindow: "5m"}, "s", verifierDeps{})
 	if err != nil {
 		t.Fatalf("stripe build: %v", err)
 	}

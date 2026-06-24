@@ -52,10 +52,22 @@ protection.
 ## 4. Design and Architecture
 
 **Verifier seam.** A single interface, `Verify(rawBody []byte, h http.Header, now
-time.Time) error`, with one adapter per provider (Stripe, GitHub, Shopify) in its
-own file. Adding a provider is a new file plus one registry line; the gateway never
-changes. This is the project's deep module and the differential harness's test
-surface.
+time.Time) error`, with one adapter per provider (Stripe, GitHub, Shopify,
+PayPal) in its own file. Adding a provider is a new file plus one registry line;
+the gateway never changes — proven when PayPal's fundamentally different
+asymmetric scheme required no change to the gateway or the interface, only a new
+file and one factory branch. This is the project's deep module and the
+differential harness's test surface.
+
+**PayPal's asymmetric shape and its SSRF guard.** PayPal has no shared secret:
+it signs with a private key and is verified against PayPal's own certificate,
+fetched at runtime from a `paypal-cert-url` header. Because that header is
+attacker-controlled input, the fetch is gated by a host allowlist
+(`*.paypal.com`, https only) checked *before* any network call, and the fetched
+certificate must additionally chain to a trusted root — a host match alone is
+not sufficient. The certificate is cached per cert-URL to avoid refetching on
+every webhook. PayPal's webhook subscription ID (`webhook_id`) is ordinary
+config, not a secret, so its route carries no `secret_env`.
 
 **Gateway signature.** On a verified request the gateway re-signs `"<provider>.
 <body>"` with one `INTERNAL_SECRET` and forwards it. The protected application
@@ -113,15 +125,34 @@ that takes an already-resolved secret, so its branching is unit-testable (see §
 The oracle libraries are **test-only**: `go list -deps . | grep -E 'stripe|go-github'`
 is empty, confirming the shipped binary remains zero-dependency.
 
+**PayPal (asymmetric, no official Go library).** The differential-harness
+approach does not apply — there is no official `stripe-go`/`go-github`
+equivalent to diff against. Instead: a roundtrip test signs with a locally
+generated RSA keypair exactly as PayPal documents and asserts verification
+passes, then asserts it rejects a tampered body, the wrong key, the wrong
+`webhookId`, and a malformed signature; a dedicated test asserts the
+`paypal-cert-url` host-pin rejects every non-PayPal host (including
+suffix-confusion attempts like `paypal.com.evil.com`) before any fetch; and a
+dedicated test asserts a self-signed certificate (standing in for an
+attacker-supplied one) fails chain validation. **Not** covered by an automated
+test: the full pipeline against a real certificate fetched from a real PayPal
+host and a genuinely PayPal-signed event — that requires a PayPal sandbox
+account and webhook simulator capture, and is recorded here as the deliberate
+next manual step rather than simulated in CI.
+
 **Validation strength (stated honestly).** Stripe and GitHub are cross-checked
 against the providers' own official libraries, so their correctness is
 *independently* established. Shopify implements the documented algorithm but is
 verified only against an independent re-implementation of that same documented
-scheme — strong, but not a check against Shopify's own code. All tests use
-synthetic payloads signed with each provider's algorithm; the suite has not yet
-been run against real captured webhooks or vendor-published test vectors, which
-would be the next step to raise assurance further (and is the right way to add a
-provider that has no official Go library).
+scheme — strong, but not a check against Shopify's own code. PayPal's signature
+math is verified by roundtrip against a locally generated key (sound, since the
+algorithm is just RSA-SHA256 over a documented message), but the cert-fetch and
+chain-validation pipeline is untested end-to-end against a real PayPal
+certificate — the weakest-validated piece in the project, and honestly the
+reason a manual sandbox-capture step is named rather than skipped. All other
+tests use synthetic payloads signed with each provider's algorithm; the suite
+has not yet been run against real captured webhooks or vendor-published test
+vectors generally, which would be the next step to raise assurance further.
 
 **Live demonstration.** `demo.sh` starts the gateway and a sample upstream and
 fires the full threat-model matrix — a valid webhook (`200 ok`), then tampered,
@@ -142,13 +173,18 @@ novelty.
 
 ## 8. Limitations and Future Work
 
-Tracked as GitHub issues. Out of the current 3-provider scope: PayPal (asymmetric
-RSA), Twilio (URL + sorted params), the Standard Webhooks spec. Beyond verification:
-mTLS between gateway and upstream, dynamic secret rotation, a durable queue with
-retry/backpressure (HookGuard is intentionally stateless), observability, per-route
-rate limiting, and a fast-ack pattern. Two architectural refactors are scheduled by
-condition: a self-registering provider registry (when provider count grows) and a
-composable replay-window check (when a second timestamped provider lands).
+Tracked as GitHub issues. Out of the current 4-provider scope: Twilio (HMAC over
+the exact URL plus lexically-sorted params — breaks behind a path-rewriting
+proxy), the Standard Webhooks spec. A manual sandbox-capture fixture test for
+PayPal (a real webhook from a PayPal sandbox account and webhook simulator) is
+also deferred — see §6. Beyond verification: mTLS between gateway and upstream,
+dynamic secret rotation, a durable queue with retry/backpressure (HookGuard is
+intentionally stateless), observability, per-route rate limiting, and a fast-ack
+pattern. Two architectural refactors are scheduled by condition: a
+self-registering provider registry (now that provider count has grown to four,
+worth revisiting) and a composable replay-window check (when a second
+timestamped provider lands — PayPal carries a transmission time but no replay
+window was implemented for it yet, deferred deliberately).
 
 ## 9. Conclusion
 
@@ -173,6 +209,23 @@ Step-by-step record, updated as issues are resolved.
   logic. *Resolved.*
 - **Demo.** Added `demo.sh` — a reproducible live walkthrough of the threat model
   plus the differential harness.
+- **Issue #1 — PayPal verifier (asymmetric RSA).** Added a fourth provider behind
+  the unchanged `Verifier` interface: offline RSA-SHA256 over
+  `transmissionId|transmissionTime|webhookId|crc32(body)`, verified against a
+  certificate fetched from `paypal-cert-url`. Required widening
+  `buildVerifier` from per-provider scalars to `(Route, secret, verifierDeps)`
+  since PayPal needs an `*http.Client` and no secret, and adding `webhook_id` to
+  `Route` (config, not a secret — no `secret_env` for PayPal routes). The
+  cert-url host is pinned to `*.paypal.com` over https *before* any fetch (the
+  fetch target is attacker-controlled input — the single most important check
+  in this provider) and the fetched certificate must additionally chain to a
+  trusted root; results are cached per cert-URL. No official PayPal Go library
+  exists, so correctness rests on a roundtrip test against a locally generated
+  keypair plus dedicated SSRF and chain-rejection tests, rather than a
+  differential harness; a real sandbox-capture fixture is named as a deferred
+  manual step (§6, §8). Replay-window freshness checking on the transmission
+  time was considered (PayPal does carry one) and deliberately deferred, same
+  as the registry refactor. *Resolved.*
 
 ## References
 
