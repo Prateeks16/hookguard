@@ -37,7 +37,8 @@
 
 {{define "dashboard-topbar"}}<header class="topbar">
   <a class="topbar-brand" href="/dashboard">{{template "siggy-badge-mini" .}}HookGuard</a>
-  <span class="live-dot" title="liveness is wired up in a later milestone">&#9679;live</span>
+  {{if .Connected}}<span class="live-dot" title="gateway connected">&#9679;live</span>
+  {{else}}<span class="live-dot live-dot-off" title="no signal from gateway">&#9675;offline</span>{{end}}
   <span class="topbar-spacer"></span>
   <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark/light theme">&#9788;/&#9790;</button>
   <div class="topbar-user">
@@ -60,4 +61,6 @@
   </nav>
 </aside>{{end}}
 
-{{define "dashboard-statusbar"}}<footer class="statusbar no-signal">no signal from gateway &middot; v{{.Version}}</footer>{{end}}
+{{define "dashboard-statusbar"}}<footer class="statusbar{{if not .Connected}} no-signal{{end}}">
+  gateway: {{if .Connected}}connected{{else}}no signal from gateway{{end}}{{if .LastEventAgo}} &middot; last event {{.LastEventAgo}}{{end}} &middot; v{{.Version}}
+</footer>{{end}}

@@ -13,28 +13,82 @@
     <div class="shell-body">
       {{template "dashboard-sidebar" .}}
       <main class="main">
-        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Overview</h1>
-
-        <div class="statcards">
-          <div class="statcard"><h3>Accepted (24h)</h3><div class="value">0</div></div>
-          <div class="statcard"><h3>Rejected (24h)</h3><div class="value">0</div></div>
-          <div class="statcard"><h3>Accept rate</h3><div class="value">&mdash;</div></div>
-          <div class="statcard"><h3>p50 verify+forward latency</h3><div class="value">&mdash;</div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4)">
+          <h1 style="font-family:var(--font-display);font-size:var(--text-xl);margin:0">Overview</h1>
+          {{if .HasAnyEvent}}
+          <div class="window-toggle" role="group" aria-label="Chart window">
+            <a class="btn{{if eq .Window "24h"}} btn-primary{{end}}" href="/dashboard?window=24h">24h</a>
+            <a class="btn{{if eq .Window "7d"}} btn-primary{{end}}" href="/dashboard?window=7d">7d</a>
+          </div>
+          {{end}}
         </div>
 
+        <div id="statcards" class="statcards" hx-get="/api/v1/stats/summary?window={{.Window}}" hx-trigger="every 30s" hx-swap="none">
+          <div class="statcard"><h3>Accepted ({{.Window}})</h3><div class="value" data-stat="accepted">{{.Accepted}}</div></div>
+          <div class="statcard"><h3>Rejected ({{.Window}})</h3><div class="value" data-stat="rejected">{{.Rejected}}</div></div>
+          <div class="statcard"><h3>Accept rate</h3><div class="value" data-stat="accept_rate">{{.AcceptRatePct}}</div></div>
+          <div class="statcard"><h3>p50 verify+forward latency</h3><div class="value" data-stat="p50_latency_ms">{{if .HasAnyEvent}}{{.P50LatencyMS}}{{else}}&mdash;{{end}}</div></div>
+        </div>
+
+        {{if .HasAnyEvent}}
+        <section class="card">
+          <h2>Events per hour ({{.Window}})</h2>
+          <p style="color:var(--text-muted);font-size:var(--text-xs)">
+            <span style="color:var(--ok)">&#9632;</span> accepted &nbsp;
+            <span style="color:var(--reject)">&#9632;</span> rejected
+          </p>
+          {{.ChartSVG}}
+        </section>
+
+        <section class="card">
+          <h2>Recent rejections</h2>
+          {{if .RecentRejected}}
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Provider</th>
+                <th>Path</th>
+                <th>Reason</th>
+                <th>Remote IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .RecentRejected}}<tr>
+                <td>{{.Time}}</td>
+                <td><span class="badge badge-provider-{{.Provider}}">{{.Provider}}</span></td>
+                <td><code>{{.Path}}</code></td>
+                <td style="color:var(--reject)">{{.Reason}}</td>
+                <td><code>{{.RemoteIP}}</code></td>
+              </tr>{{end}}
+            </tbody>
+          </table>
+          {{else}}
+          <p style="color:var(--text-muted)">No rejections in this window.</p>
+          {{end}}
+        </section>
+        {{else}}
         <div class="empty-state">
           {{template "siggy-sleep-placeholder" .}}
           <p style="font-family:var(--font-display);font-size:var(--text-md)">No traffic at the gate yet.</p>
           <p style="color:var(--text-muted)">Fire a test webhook once the gateway is pointed here:</p>
-          <pre>curl -X POST http://localhost:9000/hook/stripe \
-  -H "Content-Type: application/json" \
-  -d '{"type":"test.event"}'</pre>
+          <pre>SECRET=whsec_change-me                 # must match STRIPE_SECRET
+BODY='{"id":"evt_1","amount":4242}'
+TS=$(date +%s)
+SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
+
+curl -s -X POST localhost:9000/hook/stripe \
+  -H "Stripe-Signature: t=$TS,v1=$SIG" \
+  --data "$BODY"</pre>
         </div>
+        {{end}}
       </main>
     </div>
     {{template "dashboard-statusbar" .}}
   </div>
+  <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/theme.js"></script>
+  <script src="/static/js/overview.js"></script>
 </body>
 </html>
 {{end}}

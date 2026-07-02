@@ -31,8 +31,12 @@ func (s *Server) handleEndpointsList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "endpoints.html", endpointsData{
-		pageData:  pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Endpoints: endpoints,
 	})
 }
@@ -40,8 +44,12 @@ func (s *Server) handleEndpointsList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleEndpointNewForm(w http.ResponseWriter, r *http.Request) {
 	u := userFromContext(r)
 	sess := sessionFromContext(r)
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "endpoint_form.html", endpointFormData{
-		pageData: pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Endpoint: store.Endpoint{Provider: "stripe", ReplayWindow: "5m", Active: true},
 		IsNew:    true,
 	})
@@ -61,8 +69,12 @@ func (s *Server) handleEndpointEditForm(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "endpoint_form.html", endpointFormData{
-		pageData: pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Endpoint: *ep,
 		IsNew:    false,
 	})
@@ -231,9 +243,13 @@ func (s *Server) handleEndpointExportPreview(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "endpoint_export.html", endpointExportData{
-		pageData: pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints"},
-		JSON:     string(out),
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
+		JSON: string(out),
 	})
 }
 
@@ -292,8 +308,12 @@ func validateEndpointForm(e store.Endpoint) string {
 
 func (s *Server) renderEndpointFormError(w http.ResponseWriter, u *store.User, sess *store.Session, e store.Endpoint, isNew bool, msg string) {
 	w.WriteHeader(http.StatusUnprocessableEntity)
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "endpoint_form.html", endpointFormData{
-		pageData:  pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "endpoints",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Endpoint:  e,
 		IsNew:     isNew,
 		FormError: msg,
