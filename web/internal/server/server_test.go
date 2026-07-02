@@ -23,7 +23,7 @@ func newTestServer(t *testing.T, allowSignup bool) (*Server, *httptest.Server) {
 	}
 	t.Cleanup(func() { st.Close() })
 
-	srv, err := New(st, ui.TemplatesFS, allowSignup, "test")
+	srv, err := New(st, ui.TemplatesFS, allowSignup, "test", []byte(testInternalSecret))
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

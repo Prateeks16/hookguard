@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"hookguard/web/internal/auth"
+	"hookguard/web/internal/ingest"
 	"hookguard/web/internal/store"
 )
 
@@ -25,24 +26,35 @@ type Server struct {
 	LoginLimiter  *auth.Limiter
 	SignupLimiter *auth.Limiter
 
+	// InternalSecret authenticates POST /api/v1/ingest (Gateway signature,
+	// DESIGN.md §7.4) — separate from session auth entirely. Empty means the
+	// route always rejects, since no request could ever verify.
+	InternalSecret []byte
+	Ingest         *ingest.Batcher
+
 	Now func() time.Time
 }
 
 // New builds a Server. templatesFS is passed in from main via go:embed
-// (web/ui) so the binary is self-contained.
-func New(st *store.Store, templatesFS embed.FS, allowSignup bool, version string) (*Server, error) {
+// (web/ui) so the binary is self-contained. internalSecret authenticates
+// the ingest route; a Batcher is always constructed (cheap: one goroutine)
+// so the route works whenever the secret is configured, even if the caller
+// never sets EVENTS_URL on the gateway side.
+func New(st *store.Store, templatesFS embed.FS, allowSignup bool, version string, internalSecret []byte) (*Server, error) {
 	tmpl, err := template.ParseFS(templatesFS, "templates/layouts/*.html", "templates/pages/*.html", "templates/partials/*.html")
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
-		Store:         st,
-		Templates:     tmpl,
-		AllowSignup:   allowSignup,
-		Version:       version,
-		LoginLimiter:  auth.NewLimiter(10, 15*time.Minute),
-		SignupLimiter: auth.NewLimiter(5, time.Hour),
-		Now:           time.Now,
+		Store:          st,
+		Templates:      tmpl,
+		AllowSignup:    allowSignup,
+		Version:        version,
+		LoginLimiter:   auth.NewLimiter(10, 15*time.Minute),
+		SignupLimiter:  auth.NewLimiter(5, time.Hour),
+		InternalSecret: internalSecret,
+		Ingest:         ingest.NewBatcher(st),
+		Now:            time.Now,
 	}, nil
 }
 
@@ -87,6 +99,8 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 	mux.HandleFunc("GET /dashboard/settings/users", s.requireAdmin(s.handleSettings))
 	mux.HandleFunc("POST /dashboard/settings/users", s.requireAdmin(s.handleUserCreate))
 	mux.HandleFunc("POST /dashboard/settings/users/{id}/deactivate", s.requireAdmin(s.handleUserDeactivate))
+
+	mux.HandleFunc("POST /api/v1/ingest", s.handleIngest)
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 
