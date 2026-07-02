@@ -34,7 +34,7 @@ func TestRawBodyPassthrough(t *testing.T) {
 	defer upstream.Close()
 
 	route := Route{Path: "/hook/test", Upstream: upstream.URL}
-	gw := httptest.NewServer(makeHandler(route, passVerifier{}, []byte("itest"), &http.Client{Timeout: 5 * time.Second}))
+	gw := httptest.NewServer(makeHandler(route, passVerifier{}, []byte("itest"), &http.Client{Timeout: 5 * time.Second}, nil))
 	defer gw.Close()
 
 	resp, err := http.Post(gw.URL, "application/json", bytes.NewReader(payload))
@@ -76,7 +76,7 @@ func TestGatewaySignatureEndToEnd(t *testing.T) {
 
 	v := StripeVerifier{Secret: []byte(stripeSecret), ReplayWindow: 5 * time.Minute}
 	route := Route{Provider: provider, Upstream: upstream.URL}
-	gw := httptest.NewServer(makeHandler(route, v, internal, &http.Client{Timeout: 5 * time.Second}))
+	gw := httptest.NewServer(makeHandler(route, v, internal, &http.Client{Timeout: 5 * time.Second}, nil))
 	defer gw.Close()
 
 	// Valid chain: real Stripe signature -> gateway -> upstream accepts.
