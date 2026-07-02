@@ -1,0 +1,127 @@
+{{define "settings.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Settings</h1>
+
+        <section class="card">
+          <h2>Profile</h2>
+          <p>Signed in as <strong>{{.User.Email}}</strong> {{if eq .User.Role "admin"}}<span class="badge badge-admin">admin</span>{{end}}</p>
+
+          <h3 style="font-size:var(--text-sm);color:var(--text-muted)">Change password</h3>
+          {{if .PasswordError}}<p style="color:var(--reject)">{{.PasswordError}}</p>{{end}}
+          <form method="post" action="/dashboard/settings/password">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <div class="field">
+              <label>Current password<input type="password" name="current_password" required></label>
+            </div>
+            <div class="field">
+              <label>New password (12&ndash;128 characters)<input type="password" name="new_password" minlength="12" maxlength="128" required></label>
+            </div>
+            <div class="field">
+              <label>Confirm new password<input type="password" name="new_password_confirm" minlength="12" maxlength="128" required></label>
+            </div>
+            <button class="btn btn-primary" type="submit">Change password</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Sessions</h2>
+          <table class="data">
+            <thead><tr><th>Created</th><th>Last seen</th><th>IP</th><th>User agent</th><th></th></tr></thead>
+            <tbody>
+              {{range .Sessions}}<tr>
+                <td>{{.CreatedAt}}</td>
+                <td>{{.LastSeenAt}}</td>
+                <td>{{.IP}}</td>
+                <td>{{.UserAgent}}</td>
+                <td>
+                  {{if eq .ID $.CurrentSessID}}<span class="badge">this session</span>{{end}}
+                  <form method="post" action="/dashboard/settings/sessions/{{.ID}}/revoke" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                    <button class="btn btn-danger" type="submit">Revoke</button>
+                  </form>
+                </td>
+              </tr>{{end}}
+            </tbody>
+          </table>
+          <form method="post" action="/dashboard/settings/sessions/revoke-others" style="margin-top:var(--space-3)">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <button class="btn btn-danger" type="submit">Revoke all other sessions</button>
+          </form>
+        </section>
+
+        {{if eq .User.Role "admin"}}<section class="card">
+          <h2>Users</h2>
+          <table class="data">
+            <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+              {{range .Users}}<tr>
+                <td>{{.Email}}</td>
+                <td>{{.Role}}</td>
+                <td>{{if .Active}}active{{else}}deactivated{{end}}</td>
+                <td>{{.CreatedAt}}</td>
+                <td>
+                  <form method="post" action="/dashboard/settings/users/{{.ID}}/deactivate" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                    <button class="btn" type="submit">{{if .Active}}Deactivate{{else}}Reactivate{{end}}</button>
+                  </form>
+                </td>
+              </tr>{{end}}
+            </tbody>
+          </table>
+
+          <h3 style="font-size:var(--text-sm);color:var(--text-muted)">Create user</h3>
+          <form method="post" action="/dashboard/settings/users">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <div class="field">
+              <label>Email<input type="email" name="email" required></label>
+            </div>
+            <div class="field">
+              <label>Temporary password (12&ndash;128 characters)<input type="password" name="password" minlength="12" maxlength="128" required></label>
+            </div>
+            <div class="field">
+              <label>Role
+                <select name="role">
+                  <option value="member">member</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">Create user</button>
+          </form>
+        </section>{{end}}
+
+        <section class="card">
+          <h2>Security log</h2>
+          <table class="data">
+            <thead><tr><th>Time</th><th>Kind</th><th>Email</th><th>IP</th></tr></thead>
+            <tbody>
+              {{range .AuthEvents}}<tr>
+                <td>{{.At}}</td>
+                <td>{{.Kind}}</td>
+                <td>{{.Email}}</td>
+                <td>{{.IP}}</td>
+              </tr>{{end}}
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+</body>
+</html>
+{{end}}

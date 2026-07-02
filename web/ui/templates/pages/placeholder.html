@@ -1,0 +1,25 @@
+{{define "placeholder.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Flash}} — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">{{.Flash}}</h1>
+        <p style="color:var(--text-muted)">Coming in a later milestone.</p>
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+</body>
+</html>
+{{end}}

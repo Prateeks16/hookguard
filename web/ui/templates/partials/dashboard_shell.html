@@ -1,0 +1,63 @@
+{{/* Shared dashboard chrome (DESIGN.md §6.1 ASCII layout). Pages call these
+     named templates directly rather than through layout inheritance, matching
+     the self-contained-page pattern M0/M1 already established. */}}
+
+{{define "siggy-badge-mini"}}<svg class="topbar-badge" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HookGuard">
+  <path d="M20 4c6 3 11 4 14 4v16c0 10-6 17-14 20-8-3-14-10-14-20V8c3 0 8-1 14-4Z" fill="#22C55E" stroke="#14532D" stroke-width="2.5"/>
+  <circle cx="15" cy="18" r="2" fill="#0A120D"/>
+  <circle cx="25" cy="18" r="2" fill="#0A120D"/>
+</svg>{{end}}
+
+{{define "siggy-sleep-placeholder"}}<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Siggy, asleep — placeholder pose, final art not sourced yet">
+  <ellipse cx="60" cy="100" rx="34" ry="8" fill="#14532D" opacity="0.3"/>
+  <rect x="42" y="60" width="36" height="42" rx="14" fill="#22C55E" stroke="#14532D" stroke-width="4"/>
+  <path d="M42 78c18 6 18 6 36 0" fill="none" stroke="#4ADE80" stroke-width="3" opacity="0.6"/>
+  <path d="M40 58q20-14 40 0l-3 8q-17-10-34 0Z" fill="#14532D"/>
+  <path d="M50 66q10 4 20 0" fill="none" stroke="#052E16" stroke-width="4" stroke-linecap="round"/>
+  <text x="82" y="56" font-family="var(--font-display),sans-serif" font-size="16" fill="#9BB1A4">z Z z</text>
+</svg>{{end}}
+
+{{define "siggy-lost-placeholder"}}<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Siggy, puzzled — placeholder pose, final art not sourced yet">
+  <rect x="42" y="46" width="36" height="46" rx="14" fill="#22C55E" stroke="#14532D" stroke-width="4"/>
+  <circle cx="53" cy="64" r="4" fill="#0A120D"/>
+  <circle cx="67" cy="64" r="4" fill="#0A120D"/>
+  <path d="M52 78q8 6 16 0" fill="none" stroke="#052E16" stroke-width="3" stroke-linecap="round"/>
+  <path d="M40 44q20-14 40 0l-3 8q-17-10-34 0Z" fill="#14532D"/>
+  <path d="M86 40q6-8 2-14" fill="none" stroke="#9BB1A4" stroke-width="3" stroke-linecap="round"/>
+</svg>{{end}}
+
+{{define "siggy-reject-placeholder"}}<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Siggy, arms crossed — placeholder pose, final art not sourced yet">
+  <rect x="42" y="46" width="36" height="46" rx="14" fill="#22C55E" stroke="#14532D" stroke-width="4"/>
+  <circle cx="53" cy="64" r="4" fill="#0A120D"/>
+  <circle cx="67" cy="64" r="4" fill="#0A120D"/>
+  <path d="M52 80h16" stroke="#052E16" stroke-width="3" stroke-linecap="round"/>
+  <path d="M40 44q20-14 40 0l-3 8q-17-10-34 0Z" fill="#14532D"/>
+  <rect x="38" y="70" width="44" height="10" rx="4" fill="#14532D" opacity="0.85"/>
+</svg>{{end}}
+
+{{define "dashboard-topbar"}}<header class="topbar">
+  <a class="topbar-brand" href="/dashboard">{{template "siggy-badge-mini" .}}HookGuard</a>
+  <span class="live-dot" title="liveness is wired up in a later milestone">&#9679;live</span>
+  <span class="topbar-spacer"></span>
+  <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark/light theme">&#9788;/&#9790;</button>
+  <div class="topbar-user">
+    {{if .User}}<span>{{.User.Email}}</span>
+    <a href="/dashboard/settings">Settings</a>
+    <form method="post" action="/logout" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit">Log out</button>
+    </form>{{end}}
+  </div>
+</header>{{end}}
+
+{{define "dashboard-sidebar"}}<aside class="sidebar">
+  <nav aria-label="Dashboard">
+    <a href="/dashboard" {{if eq .Active "overview"}}aria-current="page"{{end}}>Overview</a>
+    <a href="/dashboard/endpoints" {{if eq .Active "endpoints"}}aria-current="page"{{end}}>Endpoints</a>
+    <a href="/dashboard/logs" {{if eq .Active "logs"}}aria-current="page"{{end}}>Live Logs</a>
+    <a href="/dashboard/providers" {{if eq .Active "providers"}}aria-current="page"{{end}}>Providers</a>
+    <a href="/dashboard/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}>Settings</a>
+  </nav>
+</aside>{{end}}
+
+{{define "dashboard-statusbar"}}<footer class="statusbar no-signal">no signal from gateway &middot; v{{.Version}}</footer>{{end}}

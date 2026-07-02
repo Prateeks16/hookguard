@@ -1,6 +1,6 @@
 // Package server wires the Console's HTTP surface: routing, session/CSRF/
 // security-header middleware, and the public + auth handlers (DESIGN.md
-// §7.4, §9). Dashboard routes are out of scope until M2.
+// §7.4, §9).
 package server
 
 import (
@@ -60,11 +60,29 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /reset-password", s.handleResetPasswordForm)
 	mux.HandleFunc("POST /reset-password", s.handleResetPassword)
-	mux.HandleFunc("GET /dashboard", s.handleDashboardStub)
+
+	mux.HandleFunc("GET /dashboard", s.requireAuth(s.handleOverview))
+	mux.HandleFunc("GET /dashboard/endpoints", s.requireAuth(s.handleDashboardPlaceholder("endpoints", "Endpoints")))
+	mux.HandleFunc("GET /dashboard/logs", s.requireAuth(s.handleDashboardPlaceholder("logs", "Live Logs")))
+	mux.HandleFunc("GET /dashboard/providers", s.requireAuth(s.handleDashboardPlaceholder("providers", "Providers")))
+	mux.HandleFunc("GET /dashboard/settings", s.requireAuth(s.handleSettings))
+	mux.HandleFunc("POST /dashboard/settings/password", s.requireAuth(s.handlePasswordChange))
+	mux.HandleFunc("POST /dashboard/settings/sessions/{id}/revoke", s.requireAuth(s.handleSessionRevoke))
+	mux.HandleFunc("POST /dashboard/settings/sessions/revoke-others", s.requireAuth(s.handleSessionRevokeAllOthers))
+	mux.HandleFunc("GET /dashboard/settings/users", s.requireAdmin(s.handleSettings))
+	mux.HandleFunc("POST /dashboard/settings/users", s.requireAdmin(s.handleUserCreate))
+	mux.HandleFunc("POST /dashboard/settings/users/{id}/deactivate", s.requireAdmin(s.handleUserDeactivate))
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 
+	mux.HandleFunc("/", s.handleNotFound)
+
 	return withSecurityHeaders(withSession(s, mux))
+}
+
+func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+	s.render(w, "404.html", pageData{User: userFromContext(r)})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {

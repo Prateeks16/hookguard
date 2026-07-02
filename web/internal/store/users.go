@@ -73,3 +73,33 @@ func (s *Store) UpdatePasswordHash(userID int64, passwordHash string) error {
 	_, err := s.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
 	return err
 }
+
+// ListUsers backs the admin-only Settings user list — DESIGN.md §6.2.
+func (s *Store) ListUsers() ([]User, error) {
+	rows, err := s.db.Query(`SELECT id, email, password_hash, role, active, created_at FROM users ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []User
+	for rows.Next() {
+		var u User
+		var active int
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &active, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		u.Active = active != 0
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SetUserActive(userID int64, active bool) error {
+	v := 0
+	if active {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE users SET active = ? WHERE id = ?`, v, userID)
+	return err
+}

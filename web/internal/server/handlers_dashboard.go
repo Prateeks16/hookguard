@@ -2,14 +2,22 @@ package server
 
 import "net/http"
 
-// handleDashboardStub is a placeholder for GET /dashboard: enough to prove
-// the auth-gate redirect (missing/expired session -> 303 /login?next=...)
-// works end-to-end. The real dashboard shell is M2 scope.
-func (s *Server) handleDashboardStub(w http.ResponseWriter, r *http.Request) {
-	if userFromContext(r) == nil {
-		http.Redirect(w, r, "/login?next="+r.URL.Path, http.StatusSeeOther)
-		return
+// handleOverview is the real GET /dashboard route (M2): stat cards are
+// placeholder zeros since the events table has no writer until M4 — DESIGN.md
+// §6.2, §10 M2.
+func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
+	u := userFromContext(r)
+	sess := sessionFromContext(r)
+	s.render(w, "overview.html", pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "overview"})
+}
+
+// handleDashboardPlaceholder serves the minimal "coming in a later milestone"
+// page for Endpoints/Live Logs/Providers — nav must not 404, but M3/M4 CRUD
+// and streaming logic don't belong here yet.
+func (s *Server) handleDashboardPlaceholder(active, title string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := userFromContext(r)
+		sess := sessionFromContext(r)
+		s.render(w, "placeholder.html", pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: active, Flash: title})
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("dashboard placeholder"))
 }

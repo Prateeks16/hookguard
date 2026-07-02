@@ -96,3 +96,30 @@ func requireCSRF(w http.ResponseWriter, r *http.Request, sess *store.Session) bo
 	}
 	return true
 }
+
+// requireAuth wraps a /dashboard/* handler so every such route redirects an
+// unauthenticated request to /login?next=... uniformly (DESIGN.md §5.3, M2
+// verify criteria) instead of each handler re-implementing the check.
+func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if userFromContext(r) == nil {
+			http.Redirect(w, r, "/login?next="+r.URL.Path, http.StatusSeeOther)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// requireAdmin additionally rejects non-admin users with 403 — server-side
+// authorization for the admin-only Users section, independent of whether the
+// UI hides the link (DESIGN.md M2 scope).
+func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if userFromContext(r).Role != "admin" {
+			w.WriteHeader(http.StatusForbidden)
+			s.render(w, "403.html", pageData{User: userFromContext(r), Error: "Admins only."})
+			return
+		}
+		next(w, r)
+	})
+}

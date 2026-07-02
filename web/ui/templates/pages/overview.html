@@ -1,0 +1,40 @@
+{{define "overview.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overview — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Overview</h1>
+
+        <div class="statcards">
+          <div class="statcard"><h3>Accepted (24h)</h3><div class="value">0</div></div>
+          <div class="statcard"><h3>Rejected (24h)</h3><div class="value">0</div></div>
+          <div class="statcard"><h3>Accept rate</h3><div class="value">&mdash;</div></div>
+          <div class="statcard"><h3>p50 verify+forward latency</h3><div class="value">&mdash;</div></div>
+        </div>
+
+        <div class="empty-state">
+          {{template "siggy-sleep-placeholder" .}}
+          <p style="font-family:var(--font-display);font-size:var(--text-md)">No traffic at the gate yet.</p>
+          <p style="color:var(--text-muted)">Fire a test webhook once the gateway is pointed here:</p>
+          <pre>curl -X POST http://localhost:9000/hook/stripe \
+  -H "Content-Type: application/json" \
+  -d '{"type":"test.event"}'</pre>
+        </div>
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+</body>
+</html>
+{{end}}

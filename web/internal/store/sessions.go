@@ -62,6 +62,13 @@ func (s *Store) DeleteSessionByTokenHash(tokenHash []byte) error {
 	return err
 }
 
+// DeleteSessionsForUserExcept revokes every session for userID other than
+// keepID — backs the Settings "revoke all others" action.
+func (s *Store) DeleteSessionsForUserExcept(userID, keepID int64) error {
+	_, err := s.db.Exec(`DELETE FROM sessions WHERE user_id = ? AND id != ?`, userID, keepID)
+	return err
+}
+
 func (s *Store) ListSessionsForUser(userID int64) ([]Session, error) {
 	rows, err := s.db.Query(
 		`SELECT id, token_hash, user_id, csrf_token, created_at, last_seen_at, expires_at, ip, user_agent
