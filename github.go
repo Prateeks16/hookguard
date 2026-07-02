@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+func init() {
+	registerProvider("github", func(_ Route, secret string, _ verifierDeps) (Verifier, error) {
+		if secret == "" {
+			return nil, errors.New("empty secret")
+		}
+		return GitHubVerifier{Secret: []byte(secret)}, nil
+	})
+}
+
 // GitHubVerifier implements the GitHub signature shape: an X-Hub-Signature-256
 // header of the form "sha256=<hex>", where the HMAC-SHA256 is computed over the
 // raw body bytes. GitHub carries no timestamp, so there is no replay window.
