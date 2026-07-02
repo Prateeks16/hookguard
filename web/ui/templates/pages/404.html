@@ -7,8 +7,10 @@
   <link rel="stylesheet" href="/static/css/tokens.css">
 </head>
 <body>
-  <main style="max-width:480px;margin:var(--space-9) auto;padding:0 var(--space-5);font-family:var(--font-body)">
+  <main style="max-width:480px;margin:var(--space-9) auto;padding:0 var(--space-5);font-family:var(--font-body);text-align:center">
+    {{template "siggy-lost-placeholder" .}}
     <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">This route isn't in my config.</h1>
+    <p><a href="/" style="color:var(--green-500)">Back to the gate</a></p>
   </main>
 </body>
 </html>

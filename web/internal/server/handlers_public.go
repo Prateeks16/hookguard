@@ -2,15 +2,20 @@ package server
 
 import (
 	"net/http"
+
+	"hookguard/web/internal/store"
 )
 
 type pageData struct {
 	Next       string
 	Error      string
+	Flash      string
 	CSRFToken  string
 	Version    string
 	ResetToken string
 	ResetUID   string
+	User       *store.User
+	Active     string // sidebar nav highlight; unused outside /dashboard/*
 }
 
 func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +35,9 @@ func (s *Server) handleSignupForm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "signup.html", pageData{})
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, data pageData) {
+// render accepts pageData or any struct embedding it (e.g. settingsData) —
+// templates only ever need field access, not a shared static type.
+func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.Templates.ExecuteTemplate(w, name, data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
