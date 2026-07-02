@@ -101,6 +101,7 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 	mux.HandleFunc("POST /dashboard/settings/users/{id}/deactivate", s.requireAdmin(s.handleUserDeactivate))
 
 	mux.HandleFunc("POST /api/v1/ingest", s.handleIngest)
+	mux.HandleFunc("GET /api/v1/stats/summary", s.requireAuth(s.handleStatsSummary))
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(staticFS)))
 

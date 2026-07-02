@@ -16,6 +16,14 @@ type pageData struct {
 	ResetUID   string
 	User       *store.User
 	Active     string // sidebar nav highlight; unused outside /dashboard/*
+
+	// Status strip fields (DESIGN.md §6.1), embedded here rather than in a
+	// separate struct so every page — not just Overview — can render
+	// dashboard-topbar/dashboard-statusbar without each handler needing its
+	// own copy of the liveness plumbing.
+	Connected    bool
+	LastIngestAt int64  // unix ms, 0 if never
+	LastEventAgo string // human string for the template, "" if never
 }
 
 func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {

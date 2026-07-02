@@ -42,8 +42,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "settings.html", settingsData{
-		pageData:      pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "settings"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "settings",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Sessions:      sessions,
 		CurrentSessID: sess.ID,
 		Users:         users,
@@ -241,8 +245,12 @@ func (s *Server) renderSettingsError(w http.ResponseWriter, r *http.Request, u *
 		users, _ = s.Store.ListUsers()
 	}
 	events, _ := s.Store.ListAuthEvents(50)
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "settings.html", settingsData{
-		pageData:      pageData{User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "settings"},
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "settings",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
 		Sessions:      sessions,
 		CurrentSessID: sess.ID,
 		Users:         users,

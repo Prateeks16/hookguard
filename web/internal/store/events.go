@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"sort"
+	"time"
 )
 
 // Event mirrors one row of the events table (DESIGN.md §8.2) — one gateway
@@ -127,4 +129,210 @@ func (s *Store) LatestEvent() (*Event, error) {
 		return nil, err
 	}
 	return e, nil
+}
+
+// Summary is the Overview stat-card data for one window (DESIGN.md §6.2,
+// §7.4) — accepted/rejected counts from event_rollups (O(hours), not
+// O(events)) plus a p50 latency computed in Go over a bounded sample of
+// recent events, since rollups don't carry latency.
+type Summary struct {
+	Accepted     int
+	Rejected     int
+	AcceptRate   float64 // 0 when Accepted+Rejected == 0 — see AcceptRate doc
+	P50LatencyMS int64
+}
+
+// latencySampleLimit bounds the p50 query so it stays O(1)-ish regardless of
+// traffic volume; p50 over the most recent 1000 events is an approximation
+// of the true 24h p50, not an exact figure, and callers/templates should
+// treat it as such.
+const latencySampleLimit = 1000
+
+// SummaryWindow sums event_rollups over the last `hours` hourly buckets
+// (inclusive of the current partial hour) ending at now, and computes p50
+// latency from up to latencySampleLimit of the most recent events within
+// that same window. now is passed in (not time.Now()) so tests are
+// deterministic.
+func (s *Store) SummaryWindow(now time.Time, hours int) (Summary, error) {
+	nowHour := now.Unix() / 3600
+	startHour := nowHour - int64(hours) + 1
+
+	rows, err := s.db.Query(
+		`SELECT verdict, SUM(n) FROM event_rollups WHERE hour >= ? AND hour <= ? GROUP BY verdict`,
+		startHour, nowHour,
+	)
+	if err != nil {
+		return Summary{}, err
+	}
+	defer rows.Close()
+
+	var sum Summary
+	for rows.Next() {
+		var verdict string
+		var n int
+		if err := rows.Scan(&verdict, &n); err != nil {
+			return Summary{}, err
+		}
+		switch verdict {
+		case "accepted":
+			sum.Accepted = n
+		case "rejected":
+			sum.Rejected = n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Summary{}, err
+	}
+
+	total := sum.Accepted + sum.Rejected
+	if total > 0 {
+		sum.AcceptRate = float64(sum.Accepted) / float64(total)
+	}
+
+	startMS := startHour * 3600 * 1000
+	p50, err := s.p50LatencySince(startMS)
+	if err != nil {
+		return Summary{}, err
+	}
+	sum.P50LatencyMS = p50
+
+	return sum, nil
+}
+
+// p50LatencySince computes the median latency_ms of the most recent
+// latencySampleLimit events at or after sinceMS (unix ms). Even-count
+// samples take the lower of the two middle values — a documented,
+// deterministic tie-break, not the average, since latency_ms is an integer
+// and both choices are defensible approximations.
+func (s *Store) p50LatencySince(sinceMS int64) (int64, error) {
+	rows, err := s.db.Query(
+		`SELECT latency_ms FROM events WHERE received_at >= ? ORDER BY received_at DESC LIMIT ?`,
+		sinceMS, latencySampleLimit,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var latencies []int64
+	for rows.Next() {
+		var l int64
+		if err := rows.Scan(&l); err != nil {
+			return 0, err
+		}
+		latencies = append(latencies, l)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(latencies) == 0 {
+		return 0, nil
+	}
+
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	mid := len(latencies) / 2
+	if len(latencies)%2 == 1 {
+		return latencies[mid], nil
+	}
+	return latencies[mid-1], nil
+}
+
+// HourlyCounts is one hour bucket's accepted/rejected split for the Overview
+// chart (DESIGN.md §6.2).
+type HourlyCounts struct {
+	Hour     int64 // unix hour bucket, matches event_rollups.hour
+	Accepted int
+	Rejected int
+}
+
+// HourlyCountsWindow returns one HourlyCounts per hour from (now - hours + 1)
+// through now inclusive, in ascending hour order, with zero-filled gaps for
+// hours that have no rollup rows at all — the chart renderer needs a dense
+// series, not a sparse one.
+func (s *Store) HourlyCountsWindow(now time.Time, hours int) ([]HourlyCounts, error) {
+	nowHour := now.Unix() / 3600
+	startHour := nowHour - int64(hours) + 1
+
+	rows, err := s.db.Query(
+		`SELECT hour, verdict, SUM(n) FROM event_rollups WHERE hour >= ? AND hour <= ? GROUP BY hour, verdict`,
+		startHour, nowHour,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byHour := make(map[int64]*HourlyCounts, hours)
+	for rows.Next() {
+		var hour int64
+		var verdict string
+		var n int
+		if err := rows.Scan(&hour, &verdict, &n); err != nil {
+			return nil, err
+		}
+		hc, ok := byHour[hour]
+		if !ok {
+			hc = &HourlyCounts{Hour: hour}
+			byHour[hour] = hc
+		}
+		switch verdict {
+		case "accepted":
+			hc.Accepted = n
+		case "rejected":
+			hc.Rejected = n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]HourlyCounts, hours)
+	for i := 0; i < hours; i++ {
+		hour := startHour + int64(i)
+		if hc, ok := byHour[hour]; ok {
+			out[i] = *hc
+		} else {
+			out[i] = HourlyCounts{Hour: hour}
+		}
+	}
+	return out, nil
+}
+
+// RecentRejected returns the most recent n rejected events (full row, newest
+// first) for the Overview "Recent rejections" table (DESIGN.md §6.2) —
+// reasons are first-class, so every field callers need to render the table
+// is here.
+func (s *Store) RecentRejected(n int) ([]Event, error) {
+	rows, err := s.db.Query(
+		`SELECT received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
+		 FROM events WHERE verdict = 'rejected' ORDER BY received_at DESC LIMIT ?`,
+		n,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// HasAnyEvent reports whether the events table has ever had a row inserted —
+// drives the Overview empty state (DESIGN.md §6.2), independent of any time
+// window (a 24h-old install with only stale events should not see the empty
+// state).
+func (s *Store) HasAnyEvent() (bool, error) {
+	var exists int
+	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM events LIMIT 1)`).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
 }
