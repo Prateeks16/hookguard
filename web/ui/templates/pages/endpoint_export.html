@@ -1,0 +1,33 @@
+{{define "endpoint_export.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Export config.json — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Export config.json</h1>
+        <p style="color:var(--text-muted)">This is the gateway config the Console would generate from active endpoints right now.</p>
+
+        <section class="card">
+          <pre style="overflow-x:auto;font-family:var(--font-mono);font-size:var(--text-sm)">{{.JSON}}</pre>
+          <a class="btn btn-primary" href="/dashboard/endpoints/export/download">Download config.json</a>
+          <a class="btn" href="/dashboard/endpoints">Back to endpoints</a>
+        </section>
+
+        <p style="color:var(--warn)">config.json ready. Restart the gateway to apply.</p>
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+</body>
+</html>
+{{end}}

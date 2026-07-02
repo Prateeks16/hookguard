@@ -1,0 +1,71 @@
+{{define "endpoint_form.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .IsNew}}New endpoint{{else}}Edit endpoint{{end}} — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">{{if .IsNew}}New endpoint{{else}}Edit endpoint{{end}}</h1>
+
+        {{if .FormError}}<p style="color:var(--reject)">{{.FormError}}</p>{{end}}
+
+        <section class="card" style="max-width:520px">
+          <form method="post" action="{{if .IsNew}}/dashboard/endpoints{{else}}/dashboard/endpoints/{{.Endpoint.ID}}{{end}}"
+                {{if not .IsNew}}hx-put="/dashboard/endpoints/{{.Endpoint.ID}}" hx-target="body"{{end}}>
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+            <div class="field">
+              <label>Path<input type="text" name="path" value="{{.Endpoint.Path}}" placeholder="/hook/stripe" required></label>
+            </div>
+
+            <div class="field">
+              <label>Provider
+                <select name="provider" id="provider-select" data-provider-select>
+                  <option value="stripe" {{if eq .Endpoint.Provider "stripe"}}selected{{end}}>stripe</option>
+                  <option value="github" {{if eq .Endpoint.Provider "github"}}selected{{end}}>github</option>
+                  <option value="shopify" {{if eq .Endpoint.Provider "shopify"}}selected{{end}}>shopify</option>
+                  <option value="paypal" {{if eq .Endpoint.Provider "paypal"}}selected{{end}}>paypal</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field">
+              <label>Upstream URL<input type="url" name="upstream_url" value="{{.Endpoint.UpstreamURL}}" placeholder="http://localhost:8080/stripe" required></label>
+            </div>
+
+            <div class="field" data-provider-field="secret" style="{{if eq .Endpoint.Provider "paypal"}}display:none{{end}}">
+              <label>Secret environment variable name<input type="text" name="secret_env" value="{{.Endpoint.SecretEnv}}" placeholder="STRIPE_SECRET"></label>
+              <p style="font-size:var(--text-xs);color:var(--text-muted)"><strong>The secret itself is never entered here</strong> — only the name of the environment variable the gateway process reads it from.</p>
+            </div>
+
+            <div class="field" data-provider-field="replay" style="{{if ne .Endpoint.Provider "stripe"}}display:none{{end}}">
+              <label>Replay window<input type="text" name="replay_window" value="{{if .Endpoint.ReplayWindow}}{{.Endpoint.ReplayWindow}}{{else}}5m{{end}}" placeholder="5m"></label>
+              <p style="font-size:var(--text-xs);color:var(--text-muted)">Go duration string, e.g. "5m". Leave blank to disable the replay check.</p>
+            </div>
+
+            <div class="field" data-provider-field="webhook" style="{{if ne .Endpoint.Provider "paypal"}}display:none{{end}}">
+              <label>Webhook ID (subscription ID &mdash; config, not a secret)<input type="text" name="webhook_id" value="{{.Endpoint.WebhookID}}" placeholder="WH-..."></label>
+            </div>
+
+            <button class="btn btn-primary" type="submit">{{if .IsNew}}Create endpoint{{else}}Save changes{{end}}</button>
+            <a class="btn" href="/dashboard/endpoints">Cancel</a>
+          </form>
+        </section>
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/htmx.min.js"></script>
+  <script src="/static/js/endpoints.js"></script>
+</body>
+</html>
+{{end}}

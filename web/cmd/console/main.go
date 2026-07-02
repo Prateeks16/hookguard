@@ -11,11 +11,15 @@ import (
 	_ "hookguard/internal/gatewaysig"
 )
 
-const version = "0.1.0-m2"
+const version = "0.1.0-m3"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
 		runResetPassword(os.Args[2:])
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "seed-config" {
+		runSeedConfig(os.Args[2:])
 		return
 	}
 
