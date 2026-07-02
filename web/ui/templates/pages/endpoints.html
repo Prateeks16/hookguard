@@ -1,0 +1,76 @@
+{{define "endpoints.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Endpoints — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4)">
+          <h1 style="font-family:var(--font-display);font-size:var(--text-xl);margin:0">Endpoints</h1>
+          <div style="display:flex;gap:var(--space-3)">
+            <a class="btn" href="/dashboard/endpoints/export">Export config.json</a>
+            <a class="btn btn-primary" href="/dashboard/endpoints/new">New endpoint</a>
+          </div>
+        </div>
+
+        {{if not .Endpoints}}
+        <div class="empty-state">
+          {{template "siggy-sleep-placeholder" .}}
+          <p style="font-family:var(--font-display);font-size:var(--text-md)">No endpoints configured yet.</p>
+          <p style="color:var(--text-muted)">Add one, or seed from an existing gateway config.json with <code>console seed-config &lt;path&gt;</code>.</p>
+        </div>
+        {{else}}
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Provider</th>
+              <th>Upstream</th>
+              <th>Replay window</th>
+              <th>Secret env / webhook ID</th>
+              <th>Active</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Endpoints}}<tr>
+              <td><code>{{.Path}}</code></td>
+              <td><span class="badge badge-provider-{{.Provider}}">{{.Provider}}</span></td>
+              <td>{{.UpstreamURL}}</td>
+              <td>{{if .ReplayWindow}}{{.ReplayWindow}}{{else}}&mdash;{{end}}</td>
+              <td>{{if eq .Provider "paypal"}}{{.WebhookID}}{{else}}{{.SecretEnv}}{{end}}</td>
+              <td>
+                <form method="post" action="/dashboard/endpoints/{{.ID}}/toggle-active" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                  <button class="btn" type="submit">{{if .Active}}active{{else}}disabled{{end}}</button>
+                </form>
+              </td>
+              <td style="white-space:nowrap">
+                <a class="btn" href="/dashboard/endpoints/{{.ID}}/edit">Edit</a>
+                <button class="btn btn-danger" type="button"
+                  data-delete-endpoint
+                  data-endpoint-id="{{.ID}}"
+                  data-endpoint-path="{{.Path}}"
+                  data-csrf-token="{{$.CSRFToken}}">Delete</button>
+              </td>
+            </tr>{{end}}
+          </tbody>
+        </table>
+        {{end}}
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/endpoints.js"></script>
+</body>
+</html>
+{{end}}

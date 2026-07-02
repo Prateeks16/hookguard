@@ -62,7 +62,22 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 	mux.HandleFunc("POST /reset-password", s.handleResetPassword)
 
 	mux.HandleFunc("GET /dashboard", s.requireAuth(s.handleOverview))
-	mux.HandleFunc("GET /dashboard/endpoints", s.requireAuth(s.handleDashboardPlaceholder("endpoints", "Endpoints")))
+	mux.HandleFunc("GET /dashboard/endpoints", s.requireAuth(s.handleEndpointsList))
+	mux.HandleFunc("GET /dashboard/endpoints/new", s.requireAuth(s.handleEndpointNewForm))
+	mux.HandleFunc("POST /dashboard/endpoints", s.requireAuth(s.handleEndpointCreate))
+	mux.HandleFunc("GET /dashboard/endpoints/export", s.requireAuth(s.handleEndpointExportPreview))
+	mux.HandleFunc("GET /dashboard/endpoints/export/download", s.requireAuth(s.handleEndpointExportDownload))
+	mux.HandleFunc("GET /dashboard/endpoints/{id}/edit", s.requireAuth(s.handleEndpointEditForm))
+	// PUT is the documented route (DESIGN.md §7.4); htmx's hx-put issues a
+	// real HTTP PUT so no method-override is needed there. The plain POST to
+	// the same path is a no-JS fallback for the same handler (the <form>
+	// element itself has no PUT method) — a small, explicit deviation, not a
+	// silent downgrade: both routes exist and both are exercised by tests.
+	mux.HandleFunc("PUT /dashboard/endpoints/{id}", s.requireAuth(s.handleEndpointUpdate))
+	mux.HandleFunc("POST /dashboard/endpoints/{id}", s.requireAuth(s.handleEndpointUpdate))
+	mux.HandleFunc("DELETE /dashboard/endpoints/{id}", s.requireAuth(s.handleEndpointDelete))
+	mux.HandleFunc("POST /dashboard/endpoints/{id}/delete", s.requireAuth(s.handleEndpointDelete))
+	mux.HandleFunc("POST /dashboard/endpoints/{id}/toggle-active", s.requireAuth(s.handleEndpointToggleActive))
 	mux.HandleFunc("GET /dashboard/logs", s.requireAuth(s.handleDashboardPlaceholder("logs", "Live Logs")))
 	mux.HandleFunc("GET /dashboard/providers", s.requireAuth(s.handleDashboardPlaceholder("providers", "Providers")))
 	mux.HandleFunc("GET /dashboard/settings", s.requireAuth(s.handleSettings))

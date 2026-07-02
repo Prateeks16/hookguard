@@ -278,6 +278,15 @@ table.data th {
   color: var(--green-800);
 }
 
+.badge-provider-stripe,
+.badge-provider-github,
+.badge-provider-shopify,
+.badge-provider-paypal {
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 @media (max-width: 1024px) {
   .shell-body {
     grid-template-columns: 1fr;
