@@ -5,11 +5,25 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func init() {
+	registerProvider("stripe", func(r Route, secret string, _ verifierDeps) (Verifier, error) {
+		if secret == "" {
+			return nil, errors.New("empty secret")
+		}
+		window, err := parseWindow(r.ReplayWindow)
+		if err != nil {
+			return nil, fmt.Errorf("replay_window: %w", err)
+		}
+		return StripeVerifier{Secret: []byte(secret), ReplayWindow: window}, nil
+	})
+}
 
 // StripeVerifier implements the Stripe signature shape: a Stripe-Signature
 // header of the form "t=<unix>,v1=<hex>[,v1=<hex>...]", where the HMAC-SHA256 is

@@ -30,6 +30,15 @@ const (
 // would otherwise accept.
 var paypalCertHostAllowlist = []string{"paypal.com"}
 
+func init() {
+	registerProvider("paypal", func(r Route, _ string, deps verifierDeps) (Verifier, error) {
+		if r.WebhookID == "" {
+			return nil, errors.New("missing webhook_id")
+		}
+		return NewPayPalVerifier(r.WebhookID, deps.Client), nil
+	})
+}
+
 // PayPalVerifier implements PayPal's webhook signature shape: asymmetric
 // RSA-SHA256 over "transmissionId|transmissionTime|webhookId|crc32(body)",
 // verified against a certificate PayPal serves at paypal-cert-url. WebhookID

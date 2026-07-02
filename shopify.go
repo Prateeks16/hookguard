@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+func init() {
+	registerProvider("shopify", func(_ Route, secret string, _ verifierDeps) (Verifier, error) {
+		if secret == "" {
+			return nil, errors.New("empty secret")
+		}
+		return ShopifyVerifier{Secret: []byte(secret)}, nil
+	})
+}
+
 // ShopifyVerifier implements the Shopify signature shape: an X-Shopify-Hmac-SHA256
 // header whose value is the HMAC-SHA256 of the raw body, encoded as standard
 // base64 (not hex — the one twist versus Stripe/GitHub). No timestamp, so no
