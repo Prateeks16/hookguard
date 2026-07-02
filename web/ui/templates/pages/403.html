@@ -1,0 +1,16 @@
+{{define "403.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>403 — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+</head>
+<body>
+  <main style="max-width:480px;margin:var(--space-9) auto;padding:0 var(--space-5);font-family:var(--font-body)">
+    <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Turned away at the gate.</h1>
+    <p>{{.Error}}</p>
+  </main>
+</body>
+</html>
+{{end}}

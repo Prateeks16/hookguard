@@ -1,0 +1,23 @@
+{{define "signup.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign up — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+</head>
+<body>
+  <main style="max-width:360px;margin:var(--space-9) auto;padding:0 var(--space-5);font-family:var(--font-body)">
+    <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Create your account</h1>
+    {{if .Error}}<p style="color:var(--reject)">{{.Error}}</p>{{end}}
+    <form method="post" action="/signup">
+      <label>Email<br><input type="email" name="email" required autofocus></label><br><br>
+      <label>Password (12–128 characters)<br><input type="password" name="password" minlength="12" maxlength="128" required></label><br><br>
+      <label>Confirm password<br><input type="password" name="password_confirm" minlength="12" maxlength="128" required></label><br><br>
+      <button type="submit">Create account</button>
+    </form>
+    <p><a href="/login" style="color:var(--green-500)">Already have an account?</a></p>
+  </main>
+</body>
+</html>
+{{end}}

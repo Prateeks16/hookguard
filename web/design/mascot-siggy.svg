@@ -1,0 +1,82 @@
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Siggy, the HookGuard gatekeeper, standing at a boom barrier with one palm raised">
+  <!-- Siggy concept sketch: pose "siggy-post" (landing hero).
+       Palette: body #22C55E, highlight #4ADE80/.55, outline #14532D,
+       cap #14532D, visor #052E16, badge #BEF264, boots #0A120D. -->
+
+  <!-- ===== boom barrier (behind Siggy) ===== -->
+  <g>
+    <rect x="18" y="188" width="14" height="92" rx="5" fill="#14532D"/>
+    <g transform="rotate(-22 25 196)">
+      <rect x="22" y="188" width="170" height="17" rx="8.5" fill="#E6F0E9"
+            stroke="#14532D" stroke-width="4"/>
+      <path d="M52 190h24l-11 13H41Z" fill="#22C55E"/>
+      <path d="M100 190h24l-11 13H89Z" fill="#22C55E"/>
+      <path d="M148 190h24l-11 13h-24Z" fill="#22C55E"/>
+    </g>
+    <circle cx="25" cy="196" r="7" fill="#BEF264" stroke="#14532D" stroke-width="3"/>
+  </g>
+
+  <!-- ===== legs & boots ===== -->
+  <rect x="138" y="242" width="15" height="28" rx="7.5" fill="#14532D"/>
+  <rect x="168" y="242" width="15" height="28" rx="7.5" fill="#14532D"/>
+  <ellipse cx="143" cy="274" rx="18" ry="9" fill="#0A120D"/>
+  <ellipse cx="177" cy="274" rx="18" ry="9" fill="#0A120D"/>
+
+  <!-- ===== raised left arm (friendly halt) ===== -->
+  <path d="M104 168 Q84 150 78 122" fill="none" stroke="#14532D"
+        stroke-width="13" stroke-linecap="round"/>
+  <g transform="rotate(-15 78 112)">
+    <ellipse cx="78" cy="110" rx="15" ry="17" fill="#22C55E"
+             stroke="#14532D" stroke-width="5"/>
+    <path d="M68 100v14 M78 96v18 M88 100v14" stroke="#14532D"
+          stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== shield body ===== -->
+  <path d="M158 62c28 13 50 17 64 18v76c0 46-28 76-64 88-36-12-64-42-64-88V80
+           c14-1 36-5 64-18Z"
+        fill="#22C55E" stroke="#14532D" stroke-width="6" stroke-linejoin="round"/>
+  <!-- belly highlight -->
+  <path d="M158 80c19 8 35 11 46 12v62c0 35-19 58-46 68V80Z"
+        fill="#4ADE80" opacity="0.55"/>
+
+  <!-- ===== face ===== -->
+  <ellipse cx="138" cy="130" rx="11" ry="13" fill="#FFFFFF"/>
+  <ellipse cx="176" cy="130" rx="11" ry="13" fill="#FFFFFF"/>
+  <circle cx="140" cy="133" r="5" fill="#0A120D"/>
+  <circle cx="174" cy="133" r="5" fill="#0A120D"/>
+  <!-- vigilant brows -->
+  <path d="M126 112q12 -7 24 -2" fill="none" stroke="#14532D"
+        stroke-width="5" stroke-linecap="round"/>
+  <path d="M188 112q-12 -7 -24 -2" fill="none" stroke="#14532D"
+        stroke-width="5" stroke-linecap="round"/>
+  <path d="M146 156q12 10 24 0" fill="none" stroke="#14532D"
+        stroke-width="5" stroke-linecap="round"/>
+
+  <!-- ===== security cap ===== -->
+  <path d="M112 66q46 -34 92 0l-4 12q-42 -18 -84 0Z"
+        fill="#14532D" stroke="#14532D" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M108 78q50 -14 100 0q4 8 -4 10q-46 -12 -92 0q-8 -2 -4 -10Z"
+        fill="#14532D"/>
+  <!-- visor -->
+  <path d="M124 88q34 10 68 0q6 8 -2 12q-32 -8 -64 0q-8 -4 -2 -12Z"
+        fill="#052E16"/>
+  <!-- cap badge: the zero-dep mark -->
+  <circle cx="158" cy="62" r="10" fill="#BEF264" stroke="#052E16" stroke-width="3"/>
+  <path d="M153 62l4 4 7 -8" fill="none" stroke="#052E16"
+        stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ===== right arm holding clipboard ===== -->
+  <path d="M214 160 Q234 168 240 184" fill="none" stroke="#14532D"
+        stroke-width="13" stroke-linecap="round"/>
+  <g transform="rotate(8 246 210)">
+    <rect x="224" y="182" width="52" height="66" rx="7" fill="#FFFFFF"
+          stroke="#14532D" stroke-width="5"/>
+    <rect x="240" y="174" width="20" height="12" rx="4" fill="#14532D"/>
+    <path d="M233 204h34 M233 216h34" stroke="#9BB1A4" stroke-width="4"
+          stroke-linecap="round"/>
+    <path d="M236 232l7 7 14 -16" fill="none" stroke="#16A34A"
+          stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
