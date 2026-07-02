@@ -1,0 +1,154 @@
+/* Design tokens — HookGuard Console. Source of truth: web/DESIGN.md §2.
+   Dark mode is the default (developer tool); light mode via
+   prefers-color-scheme, overridable later by a manual toggle (M2). */
+
+:root {
+  /* Brand greens (§2.2) */
+  --green-50: #F0FDF4;
+  --green-100: #DCFCE7;
+  --green-200: #BBF7D0;
+  --green-300: #86EFAC;
+  --green-400: #4ADE80;
+  --green-500: #22C55E;
+  --green-600: #16A34A;
+  --green-700: #15803D;
+  --green-800: #166534;
+  --green-900: #14532D;
+  --green-950: #052E16;
+
+  /* Accent */
+  --accent-lime: #BEF264;
+
+  /* Type (§2.3) — self-hosted files land in web/ui/static/fonts (see
+     fonts/NOTES.md); system fallbacks keep the stack usable until then. */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+
+  /* Type scale (§2.3), rem */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 3rem;
+  --text-4xl: 3.75rem;
+
+  /* Spacing — 4px base grid (§2.4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 56px;
+  --space-9: 96px;
+
+  /* Radii (§2.4) */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 16px;
+
+  /* Motion (§2.4) */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --duration-ui: 150ms;
+  --duration-hero: 240ms;
+
+  /* Focus ring (§2.4) */
+  --focus-ring-color: var(--green-400);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Shadow — light mode only; dark mode uses borders (§2.4) */
+  --shadow-card: 0 1px 2px rgb(16 35 26 / .06), 0 8px 24px rgb(16 35 26 / .08);
+}
+
+/* Dark mode is the default (§2.4) */
+:root,
+:root:not([data-theme="light"]) {
+  --ink-950: #0A120D;
+  --ink-900: #0F1911;
+  --ink-800: #16241A;
+  --ink-700: #24382B;
+  --ink-400: #7E947F;
+  --ink-300: #9BB1A4;
+  --ink-100: #E6F0E9;
+
+  --bg: var(--ink-950);
+  --surface: var(--ink-900);
+  --surface-raised: var(--ink-800);
+  --border: var(--ink-700);
+  --text: var(--ink-100);
+  --text-muted: var(--ink-300);
+  --text-disabled: var(--ink-400);
+
+  /* Semantic (§2.2, dark column) */
+  --ok: #22C55E;
+  --reject: #F87171;
+  --warn: #FBBF24;
+  --info: #38BDF8;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --paper: #FAFDF9;
+    --card: #FFFFFF;
+    --border: #E2EAE3;
+    --text: #10231A;
+    --text-muted: #5B6E60;
+
+    --bg: var(--paper);
+    --surface: var(--card);
+    --surface-raised: var(--green-50);
+    --text-disabled: var(--ink-400, #7E947F);
+
+    /* Semantic (§2.2, light column) */
+    --ok: #16A34A;
+    --reject: #DC2626;
+    --warn: #D97706;
+    --info: #0284C7;
+  }
+}
+
+[data-theme="light"] {
+  --paper: #FAFDF9;
+  --card: #FFFFFF;
+  --border: #E2EAE3;
+  --text: #10231A;
+  --text-muted: #5B6E60;
+
+  --bg: var(--paper);
+  --surface: var(--card);
+  --surface-raised: var(--green-50);
+
+  --ok: #16A34A;
+  --reject: #DC2626;
+  --warn: #D97706;
+  --info: #0284C7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-ui: 0ms;
+    --duration-hero: 0ms;
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-feature-settings: "cv05", "tnum";
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}

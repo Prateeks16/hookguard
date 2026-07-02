@@ -1,0 +1,23 @@
+{{define "login.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+</head>
+<body>
+  <main style="max-width:360px;margin:var(--space-9) auto;padding:0 var(--space-5);font-family:var(--font-body)">
+    <h1 style="font-family:var(--font-display);font-size:var(--text-xl)">Sign in</h1>
+    {{if .Error}}<p style="color:var(--reject)">{{.Error}}</p>{{end}}
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{.Next}}">
+      <label>Email<br><input type="email" name="email" required autofocus></label><br><br>
+      <label>Password<br><input type="password" name="password" required></label><br><br>
+      <button type="submit">Sign in</button>
+    </form>
+    <p><a href="/signup" style="color:var(--green-500)">Need an account?</a></p>
+  </main>
+</body>
+</html>
+{{end}}
