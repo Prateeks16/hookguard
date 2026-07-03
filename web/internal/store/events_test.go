@@ -119,6 +119,10 @@ func TestInsertEventsThenLatestEventRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("latest event: %v", err)
 	}
+	if got.ID == 0 {
+		t.Fatalf("expected LatestEvent to populate a nonzero ID")
+	}
+	got.ID = 0
 	if *got != ev {
 		t.Fatalf("round-trip mismatch: got %+v, want %+v", *got, ev)
 	}
