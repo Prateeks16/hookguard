@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
 // Event mirrors one row of the events table (DESIGN.md §8.2) — one gateway
 // verdict per row, as decoded from the ingest JSON contract (§7.3).
 type Event struct {
+	ID             int64 // events.id, the SSE tail cursor (EventsSince) — 0 on rows not yet read back from the DB
 	ReceivedAt     int64 // unix ms, gateway ts
 	Path           string
 	Provider       string
@@ -119,9 +121,9 @@ func (s *Store) CountEvents() (int, error) {
 func (s *Store) LatestEvent() (*Event, error) {
 	e := &Event{}
 	err := s.db.QueryRow(
-		`SELECT received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
+		`SELECT id, received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
 		 FROM events ORDER BY id DESC LIMIT 1`,
-	).Scan(&e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP)
+	).Scan(&e.ID, &e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -304,7 +306,7 @@ func (s *Store) HourlyCountsWindow(now time.Time, hours int) ([]HourlyCounts, er
 // is here.
 func (s *Store) RecentRejected(n int) ([]Event, error) {
 	rows, err := s.db.Query(
-		`SELECT received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
+		`SELECT id, received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
 		 FROM events WHERE verdict = 'rejected' ORDER BY received_at DESC LIMIT ?`,
 		n,
 	)
@@ -316,7 +318,7 @@ func (s *Store) RecentRejected(n int) ([]Event, error) {
 	var out []Event
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP); err != nil {
+		if err := rows.Scan(&e.ID, &e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -335,4 +337,114 @@ func (s *Store) HasAnyEvent() (bool, error) {
 		return false, err
 	}
 	return exists == 1, nil
+}
+
+// EventFilter narrows ListEvents (DESIGN.md §6.2 "Live Logs" filters,
+// querystring-backed). Zero-value fields mean "no filter on this dimension".
+// Reason and Path are substring matches (SQL LIKE '%…%') rather than exact —
+// reasons are free-ish text ("signature mismatch") and callers filtering the
+// live log want "contains" behavior, not a dropdown of exact taxonomy
+// strings the UI would have to keep in lockstep with the emitter's.
+type EventFilter struct {
+	Provider string
+	Verdict  string
+	Reason   string
+	Path     string
+	FromMS   int64 // unix ms, 0 = no lower bound
+	ToMS     int64 // unix ms, 0 = no upper bound
+}
+
+// ListEvents returns up to limit events matching filter, newest first — the
+// Live Logs page's list query (DESIGN.md §6.2).
+func (s *Store) ListEvents(filter EventFilter, limit int) ([]Event, error) {
+	query := `SELECT id, received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip FROM events WHERE 1=1`
+	var args []any
+
+	if filter.Provider != "" {
+		query += ` AND provider = ?`
+		args = append(args, filter.Provider)
+	}
+	if filter.Verdict != "" {
+		query += ` AND verdict = ?`
+		args = append(args, filter.Verdict)
+	}
+	if filter.Reason != "" {
+		query += ` AND reason LIKE ? ESCAPE '\'`
+		args = append(args, "%"+likeEscape(filter.Reason)+"%")
+	}
+	if filter.Path != "" {
+		query += ` AND path LIKE ? ESCAPE '\'`
+		args = append(args, "%"+likeEscape(filter.Path)+"%")
+	}
+	if filter.FromMS > 0 {
+		query += ` AND received_at >= ?`
+		args = append(args, filter.FromMS)
+	}
+	if filter.ToMS > 0 {
+		query += ` AND received_at <= ?`
+		args = append(args, filter.ToMS)
+	}
+	query += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ID, &e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// likeEscape escapes SQL LIKE metacharacters in user-supplied substrings so
+// filter values containing '%' or '_' are matched literally, not as wildcards.
+func likeEscape(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
+// EventsSince returns up to limit events with id > sinceID, oldest first —
+// the SSE tail cursor query (DESIGN.md §6.2 stream). Using the auto-increment
+// id (rather than received_at) avoids clock-skew/duplicate-timestamp
+// ambiguity between successive polls.
+func (s *Store) EventsSince(sinceID int64, limit int) ([]Event, error) {
+	rows, err := s.db.Query(
+		`SELECT id, received_at, path, provider, verdict, reason, upstream_status, latency_ms, body_bytes, body_sha256, remote_ip
+		 FROM events WHERE id > ? ORDER BY id ASC LIMIT ?`,
+		sinceID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ID, &e.ReceivedAt, &e.Path, &e.Provider, &e.Verdict, &e.Reason, &e.UpstreamStatus, &e.LatencyMS, &e.BodyBytes, &e.BodySHA256, &e.RemoteIP); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// LatestEventID returns the current max events.id, 0 if the table is empty —
+// used by the SSE handler to establish the tail cursor for a fresh connection
+// (only stream events from "now" forward, not the whole history).
+func (s *Store) LatestEventID() (int64, error) {
+	var id sql.NullInt64
+	err := s.db.QueryRow(`SELECT MAX(id) FROM events`).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id.Int64, nil
 }

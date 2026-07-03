@@ -1,0 +1,109 @@
+{{define "logs.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Logs — HookGuard</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    {{template "dashboard-topbar" .}}
+    <div class="shell-body">
+      {{template "dashboard-sidebar" .}}
+      <main class="main">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4)">
+          <h1 style="font-family:var(--font-display);font-size:var(--text-xl);margin:0">Live Logs</h1>
+          <div>
+            <span id="paused-counter" class="badge" hidden></span>
+            <button type="button" id="pause-resume" class="btn">Pause</button>
+          </div>
+        </div>
+
+        <form method="get" action="/dashboard/logs" class="filter-form">
+          <select name="provider">
+            <option value="">All providers</option>
+            <option value="stripe" {{if eq .Filter.Provider "stripe"}}selected{{end}}>Stripe</option>
+            <option value="github" {{if eq .Filter.Provider "github"}}selected{{end}}>GitHub</option>
+            <option value="shopify" {{if eq .Filter.Provider "shopify"}}selected{{end}}>Shopify</option>
+            <option value="paypal" {{if eq .Filter.Provider "paypal"}}selected{{end}}>PayPal</option>
+          </select>
+          <select name="verdict">
+            <option value="">Any verdict</option>
+            <option value="accepted" {{if eq .Filter.Verdict "accepted"}}selected{{end}}>Accepted</option>
+            <option value="rejected" {{if eq .Filter.Verdict "rejected"}}selected{{end}}>Rejected</option>
+          </select>
+          <input type="text" name="reason" placeholder="reason contains…" value="{{.Filter.Reason}}">
+          <input type="text" name="path" placeholder="path contains…" value="{{.Filter.Path}}">
+          <input type="datetime-local" name="from" value="{{.Filter.From}}" aria-label="From">
+          <input type="datetime-local" name="to" value="{{.Filter.To}}" aria-label="To">
+          <button type="submit" class="btn btn-primary">Filter</button>
+          <a class="btn" href="/dashboard/logs">Clear</a>
+        </form>
+
+        <div id="stream-error" class="banner banner-warn" hidden>Live stream reconnecting…</div>
+
+        {{if .HasRows}}
+        <table class="data" id="logs-table" data-stream-url="{{.StreamURL}}">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Provider</th>
+              <th>Path</th>
+              <th>Verdict</th>
+              <th>Reason</th>
+              <th>Upstream</th>
+              <th>Latency</th>
+              <th>Bytes</th>
+              <th>Remote IP</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            {{range .Rows}}<tr class="log-row" tabindex="0"
+              data-id="{{.ID}}" data-time="{{.Time}}" data-provider="{{.Provider}}" data-path="{{.Path}}"
+              data-verdict="{{.Verdict}}" data-reason="{{.Reason}}" data-upstream-status="{{.UpstreamStatus}}"
+              data-latency-ms="{{.LatencyMS}}" data-body-bytes="{{.BodyBytes}}" data-body-sha256="{{.BodySHA256}}"
+              data-remote-ip="{{.RemoteIP}}">
+              <td>{{.Time}}</td>
+              <td><span class="badge badge-provider-{{.Provider}}">{{.Provider}}</span></td>
+              <td><code>{{.Path}}</code></td>
+              <td>{{if eq .Verdict "accepted"}}<span style="color:var(--ok)">&#10003; accepted</span>{{else}}<span style="color:var(--reject)">&#10007; rejected</span>{{end}}</td>
+              <td>{{.Reason}}</td>
+              <td>{{.UpstreamStatus}}</td>
+              <td>{{.LatencyMS}}ms</td>
+              <td>{{.BodyBytes}}</td>
+              <td><code>{{.RemoteIP}}</code></td>
+            </tr>{{end}}
+          </tbody>
+        </table>
+
+        <div id="log-drawer" class="drawer" hidden>
+          <button type="button" id="drawer-close" class="btn" aria-label="Close">&times;</button>
+          <h2>Event detail</h2>
+          <dl id="drawer-fields"></dl>
+          <p style="color:var(--text-muted);font-size:var(--text-xs)">
+            Webhook bodies are never stored — only a SHA-256 of the body is kept, shown above.
+            No request headers are captured either; only the fields shown here are recorded.
+          </p>
+        </div>
+        {{else}}
+        <div class="empty-state">
+          {{template "siggy-sleep-placeholder" .}}
+          <p style="font-family:var(--font-display);font-size:var(--text-md)">No traffic at the gate yet.</p>
+          <p style="color:var(--text-muted)">New events will appear here live once the gateway starts forwarding.</p>
+          <table class="data" id="logs-table" data-stream-url="{{.StreamURL}}" hidden>
+            <tbody id="logs-tbody"></tbody>
+          </table>
+        </div>
+        {{end}}
+      </main>
+    </div>
+    {{template "dashboard-statusbar" .}}
+  </div>
+  <script src="/static/js/htmx.min.js"></script>
+  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/logs.js"></script>
+</body>
+</html>
+{{end}}
