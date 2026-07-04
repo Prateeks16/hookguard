@@ -448,3 +448,15 @@ func (s *Store) LatestEventID() (int64, error) {
 	}
 	return id.Int64, nil
 }
+
+// DeleteEventsOlderThan deletes rows from events with received_at < cutoffMS,
+// returning the count deleted (DESIGN.md §8.2: the nightly retention job).
+// event_rollups is untouched — rollups are the O(hours) aggregate Overview
+// and charts read from and are kept for 13 months regardless of retention_days.
+func (s *Store) DeleteEventsOlderThan(cutoffMS int64) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM events WHERE received_at < ?`, cutoffMS)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}

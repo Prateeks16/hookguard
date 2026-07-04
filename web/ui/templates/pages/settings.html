@@ -104,6 +104,29 @@
         </section>{{end}}
 
         <section class="card">
+          <h2>Instance</h2>
+          {{if .RetentionError}}<p style="color:var(--reject)">{{.RetentionError}}</p>{{end}}
+          <form method="post" action="/dashboard/settings/retention">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <div class="field">
+              <label>Event retention window (days)<input type="number" name="retention_days" min="1" value="{{.RetentionDays}}" required></label>
+            </div>
+            <p style="font-size:var(--text-sm);color:var(--text-muted)">A nightly job deletes raw events older than this window. Rollup aggregates (used by Overview and charts) are kept for 13 months regardless.</p>
+            <button class="btn btn-primary" type="submit">Save</button>
+          </form>
+
+          <h3 style="font-size:var(--text-sm);color:var(--text-muted)">Facts</h3>
+          <dl>
+            <dt>Data file location</dt><dd><code>{{.DataDir}}</code></dd>
+            <dt>Version</dt><dd>{{.Version}}</dd>
+            <dt>Production checklist</dt><dd>See PRODUCTION.md in the repo.</dd>
+          </dl>
+
+          <h3 style="font-size:var(--text-sm);color:var(--text-muted)">Rotating the internal secret</h3>
+          <p style="font-size:var(--text-sm);color:var(--text-muted)">Rotate INTERNAL_SECRET by updating it in your deployment's environment and restarting both the gateway and Console — it is never stored here.</p>
+        </section>
+
+        <section class="card">
           <h2>Security log</h2>
           <table class="data">
             <thead><tr><th>Time</th><th>Kind</th><th>Email</th><th>IP</th></tr></thead>

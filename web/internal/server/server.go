@@ -11,6 +11,7 @@ import (
 
 	"hookguard/web/internal/auth"
 	"hookguard/web/internal/ingest"
+	"hookguard/web/internal/retention"
 	"hookguard/web/internal/store"
 )
 
@@ -22,6 +23,7 @@ type Server struct {
 	Templates   *template.Template
 	AllowSignup bool
 	Version     string
+	DataDir     string // CONSOLE_DATA_DIR the store was opened with (Settings → Instance, DESIGN.md §6.2)
 
 	LoginLimiter  *auth.Limiter
 	SignupLimiter *auth.Limiter
@@ -31,6 +33,7 @@ type Server struct {
 	// route always rejects, since no request could ever verify.
 	InternalSecret []byte
 	Ingest         *ingest.Batcher
+	Retention      *retention.Job
 
 	Now func() time.Time
 }
@@ -39,8 +42,10 @@ type Server struct {
 // (web/ui) so the binary is self-contained. internalSecret authenticates
 // the ingest route; a Batcher is always constructed (cheap: one goroutine)
 // so the route works whenever the secret is configured, even if the caller
-// never sets EVENTS_URL on the gateway side.
-func New(st *store.Store, templatesFS embed.FS, allowSignup bool, version string, internalSecret []byte) (*Server, error) {
+// never sets EVENTS_URL on the gateway side. dataDir is CONSOLE_DATA_DIR,
+// threaded through for the Settings → Instance read-only display, not used
+// for anything functional here (the store already opened its file there).
+func New(st *store.Store, templatesFS embed.FS, allowSignup bool, version string, internalSecret []byte, dataDir string) (*Server, error) {
 	tmpl, err := template.ParseFS(templatesFS, "templates/layouts/*.html", "templates/pages/*.html", "templates/partials/*.html")
 	if err != nil {
 		return nil, err
@@ -50,10 +55,12 @@ func New(st *store.Store, templatesFS embed.FS, allowSignup bool, version string
 		Templates:      tmpl,
 		AllowSignup:    allowSignup,
 		Version:        version,
+		DataDir:        dataDir,
 		LoginLimiter:   auth.NewLimiter(10, 15*time.Minute),
 		SignupLimiter:  auth.NewLimiter(5, time.Hour),
 		InternalSecret: internalSecret,
 		Ingest:         ingest.NewBatcher(st),
+		Retention:      retention.NewJob(st),
 		Now:            time.Now,
 	}, nil
 }
@@ -95,6 +102,7 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 	mux.HandleFunc("GET /dashboard/providers", s.requireAuth(s.handleDashboardPlaceholder("providers", "Providers")))
 	mux.HandleFunc("GET /dashboard/settings", s.requireAuth(s.handleSettings))
 	mux.HandleFunc("POST /dashboard/settings/password", s.requireAuth(s.handlePasswordChange))
+	mux.HandleFunc("POST /dashboard/settings/retention", s.requireAuth(s.handleRetentionChange))
 	mux.HandleFunc("POST /dashboard/settings/sessions/{id}/revoke", s.requireAuth(s.handleSessionRevoke))
 	mux.HandleFunc("POST /dashboard/settings/sessions/revoke-others", s.requireAuth(s.handleSessionRevokeAllOthers))
 	mux.HandleFunc("GET /dashboard/settings/users", s.requireAdmin(s.handleSettings))

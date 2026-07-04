@@ -362,4 +362,112 @@ func TestSettingsMutationsRequireCSRF(t *testing.T) {
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("revoke without CSRF status = %d, want 403", resp.StatusCode)
 	}
+
+	resp, err = client.PostForm(ts.URL+"/dashboard/settings/retention", url.Values{"retention_days": {"7"}})
+	if err != nil {
+		t.Fatalf("retention change without csrf: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("retention change without CSRF status = %d, want 403", resp.StatusCode)
+	}
+}
+
+// Changing retention_days via the Settings → Instance form persists it
+// (readable back via the store) and requires CSRF like every other Settings
+// mutation (DESIGN.md §6.2 Settings → Instance).
+func TestRetentionChangePersistsViaStore(t *testing.T) {
+	srv, ts := newTestServer(t, true)
+	client := newClient(t)
+
+	resp, _ := client.PostForm(ts.URL+"/signup", signupForm("nadia@example.com", "correct-horse-battery"))
+	resp.Body.Close()
+
+	_, csrfToken := sessionCookieAndCSRF(t, srv, ts.URL, client)
+	form := url.Values{}
+	form.Set("csrf_token", csrfToken)
+	form.Set("retention_days", "14")
+
+	resp, err := client.PostForm(ts.URL+"/dashboard/settings/retention", form)
+	if err != nil {
+		t.Fatalf("retention change: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("retention change status = %d, want 303", resp.StatusCode)
+	}
+
+	days, err := srv.Store.GetRetentionDays()
+	if err != nil {
+		t.Fatalf("get retention days: %v", err)
+	}
+	if days != 14 {
+		t.Fatalf("retention days = %d, want 14", days)
+	}
+
+	// The Settings page reflects the persisted value.
+	resp, err = client.Get(ts.URL + "/dashboard/settings")
+	if err != nil {
+		t.Fatalf("get settings page: %v", err)
+	}
+	body := readBody(t, resp)
+	if !strings.Contains(body, `value="14"`) {
+		t.Fatalf("expected settings page to show retention_days=14, got: %s", body)
+	}
+}
+
+// An invalid retention_days value (non-numeric, or <1) is rejected with a
+// re-rendered form and an error message, not silently accepted.
+func TestRetentionChangeRejectsInvalidValue(t *testing.T) {
+	srv, ts := newTestServer(t, true)
+	client := newClient(t)
+
+	resp, _ := client.PostForm(ts.URL+"/signup", signupForm("oscar@example.com", "correct-horse-battery"))
+	resp.Body.Close()
+
+	_, csrfToken := sessionCookieAndCSRF(t, srv, ts.URL, client)
+	form := url.Values{}
+	form.Set("csrf_token", csrfToken)
+	form.Set("retention_days", "not-a-number")
+
+	resp, err := client.PostForm(ts.URL+"/dashboard/settings/retention", form)
+	if err != nil {
+		t.Fatalf("retention change: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("retention change status = %d, want 200 (re-rendered form with error)", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Retention days must be a positive number.") {
+		t.Fatalf("expected retention error message, got: %s", body)
+	}
+
+	days, err := srv.Store.GetRetentionDays()
+	if err != nil {
+		t.Fatalf("get retention days: %v", err)
+	}
+	if days != 30 {
+		t.Fatalf("retention days = %d, want unchanged default 30", days)
+	}
+}
+
+// Unauthenticated POST to the retention route redirects to /login the same
+// as every other /dashboard/settings/* mutation — it must be wrapped by
+// requireAuth, not a new unprotected route.
+func TestRetentionChangeRequiresAuth(t *testing.T) {
+	_, ts := newTestServer(t, true)
+	client := newClient(t)
+
+	resp, err := client.PostForm(ts.URL+"/dashboard/settings/retention", url.Values{"retention_days": {"7"}})
+	if err != nil {
+		t.Fatalf("retention change unauthenticated: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("retention change unauthenticated status = %d, want 303", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/login") {
+		t.Fatalf("redirect location = %q, want /login prefix", loc)
+	}
 }

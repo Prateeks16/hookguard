@@ -15,7 +15,7 @@ func buildServer(cfg consoleConfig) (*http.Server, func(), error) {
 		return nil, nil, err
 	}
 
-	srv, err := server.New(st, ui.TemplatesFS, cfg.AllowSignup, version, cfg.InternalSecret)
+	srv, err := server.New(st, ui.TemplatesFS, cfg.AllowSignup, version, cfg.InternalSecret, cfg.DataDir)
 	if err != nil {
 		st.Close()
 		return nil, nil, err
