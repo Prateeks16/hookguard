@@ -135,6 +135,21 @@ go list -deps . | grep -E 'stripe|go-github'   # prints nothing
 | Shopify | `X-Shopify-Hmac-SHA256` | HMAC-SHA256 base64 | base64-encoded output |
 | PayPal  | `paypal-transmission-sig` (+`-id`/`-time`/`-cert-url`) | RSA-SHA256 (asymmetric) | cert fetched from `paypal-cert-url`, host-pinned to `*.paypal.com` and chain-validated before use; configured via `webhook_id`, no shared secret |
 
+## Web dashboard (optional)
+
+`docker compose up` also boots a **Console** — a landing page, a session-
+authenticated dashboard for managing routes, and a live view of every accepted/
+rejected webhook with its reason — at `http://localhost:7000`. It's a separate
+Go module (`/web`) with its own two dependencies (a pure-Go SQLite driver and
+Argon2id); the gateway itself stays zero-dependency regardless of whether the
+Console is running. Sign-up is closed by default — see
+[PRODUCTION.md §8](PRODUCTION.md#8-console--the-web-dashboard-optional) for the
+one-time bootstrap flow to create the first (admin) account. Remove the
+`console` service from `docker-compose.yml` if you don't want it at all.
+
+*(A screenshot belongs here — not captured yet; this environment's browser
+tooling doesn't support it. See `web/DESIGN.md` for the full visual spec.)*
+
 ## Documentation
 
 [docs/BUILD-GUIDE.md](docs/BUILD-GUIDE.md) — a from-scratch walkthrough of the
