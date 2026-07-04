@@ -25,10 +25,39 @@ services:
       STRIPE_SECRET: ${STRIPE_SECRET:?set STRIPE_SECRET}
       GITHUB_SECRET: ${GITHUB_SECRET:?set GITHUB_SECRET}
       SHOPIFY_SECRET: ${SHOPIFY_SECRET:?set SHOPIFY_SECRET}
+      # Optional; unset means the gateway's verify path is byte-for-byte
+      # unchanged (web/events.go) — set here so the bundled Console has real
+      # data out of the box.
+      EVENTS_URL: http://console:7000/api/v1/ingest
     volumes:
       - ./config.docker.json:/config.json:ro
+    networks: [internal]
+
+  # The web dashboard: landing page, auth, endpoint management, and the live
+  # log/stats view fed by the gateway's verdict events above. Optional — the
+  # gateway and upstream work with this service removed entirely.
+  console:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    depends_on: [gateway]
+    ports:
+      - "7000:7000"
+    environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET}
+      CONSOLE_DATA_DIR: /data
+      # Closed by default (DESIGN.md §5.2) — there is no auto-close-after-
+      # first-user logic, so this must be flipped back after bootstrapping
+      # the admin account or signup stays open indefinitely. See
+      # PRODUCTION.md's Console section for the one-time bootstrap flow.
+      CONSOLE_ALLOW_SIGNUP: "false"
+    volumes:
+      - console-data:/data
     networks: [internal]
 
 networks:
   internal:
     driver: bridge
+
+volumes:
+  console-data:
