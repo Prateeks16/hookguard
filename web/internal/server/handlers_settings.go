@@ -10,11 +10,14 @@ import (
 
 type settingsData struct {
 	pageData
-	Sessions      []store.Session
-	CurrentSessID int64
-	Users         []store.User
-	AuthEvents    []store.AuthEvent
-	PasswordError string
+	Sessions       []store.Session
+	CurrentSessID  int64
+	Users          []store.User
+	AuthEvents     []store.AuthEvent
+	PasswordError  string
+	RetentionDays  int
+	RetentionError string
+	DataDir        string
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +45,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	retentionDays, err := s.Store.GetRetentionDays()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "settings.html", settingsData{
 		pageData: pageData{
@@ -52,7 +61,32 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		CurrentSessID: sess.ID,
 		Users:         users,
 		AuthEvents:    events,
+		RetentionDays: retentionDays,
+		DataDir:       s.DataDir,
 	})
+}
+
+// handleRetentionChange updates the Instance retention window (DESIGN.md
+// §6.2 Settings → Instance). The nightly job reads retention_days fresh on
+// each tick, so no restart is needed for this to take effect.
+func (s *Server) handleRetentionChange(w http.ResponseWriter, r *http.Request) {
+	sess := sessionFromContext(r)
+	if !requireCSRF(w, r, sess) {
+		return
+	}
+	u := userFromContext(r)
+
+	days, err := strconv.Atoi(r.FormValue("retention_days"))
+	if err != nil || days < 1 {
+		s.renderRetentionError(w, r, u, sess, "Retention days must be a positive number.")
+		return
+	}
+
+	if err := s.Store.SetRetentionDays(days); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/dashboard/settings", http.StatusSeeOther)
 }
 
 // handlePasswordChange requires the current password and, on success,
@@ -245,6 +279,7 @@ func (s *Server) renderSettingsError(w http.ResponseWriter, r *http.Request, u *
 		users, _ = s.Store.ListUsers()
 	}
 	events, _ := s.Store.ListAuthEvents(50)
+	retentionDays, _ := s.Store.GetRetentionDays()
 	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
 	s.render(w, "settings.html", settingsData{
 		pageData: pageData{
@@ -256,5 +291,29 @@ func (s *Server) renderSettingsError(w http.ResponseWriter, r *http.Request, u *
 		Users:         users,
 		AuthEvents:    events,
 		PasswordError: msg,
+		RetentionDays: retentionDays,
+		DataDir:       s.DataDir,
+	})
+}
+
+func (s *Server) renderRetentionError(w http.ResponseWriter, r *http.Request, u *store.User, sess *store.Session, msg string) {
+	sessions, _ := s.Store.ListSessionsForUser(u.ID)
+	var users []store.User
+	if u.Role == "admin" {
+		users, _ = s.Store.ListUsers()
+	}
+	events, _ := s.Store.ListAuthEvents(50)
+	connected, lastIngestAt, lastEventAgo := s.dashboardStatus()
+	s.render(w, "settings.html", settingsData{
+		pageData: pageData{
+			User: u, CSRFToken: sess.CSRFToken, Version: s.Version, Active: "settings",
+			Connected: connected, LastIngestAt: lastIngestAt, LastEventAgo: lastEventAgo,
+		},
+		Sessions:       sessions,
+		CurrentSessID:  sess.ID,
+		Users:          users,
+		AuthEvents:     events,
+		RetentionError: msg,
+		DataDir:        s.DataDir,
 	})
 }

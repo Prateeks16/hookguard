@@ -127,3 +127,71 @@ func TestInsertEventsThenLatestEventRoundTrips(t *testing.T) {
 		t.Fatalf("round-trip mismatch: got %+v, want %+v", *got, ev)
 	}
 }
+
+// DeleteEventsOlderThan removes only rows with received_at < cutoffMS,
+// leaving recent events and event_rollups untouched (DESIGN.md §8.2: the
+// nightly job prunes events but rollups persist 13 months).
+func TestDeleteEventsOlderThanPrunesOnlyOldRows(t *testing.T) {
+	st := newTestStore(t)
+
+	const cutoff = 1_700_000_000_000
+	old1 := Event{ReceivedAt: cutoff - 2, Path: "/hook/stripe", Provider: "stripe", Verdict: "accepted"}
+	old2 := Event{ReceivedAt: cutoff - 1, Path: "/hook/stripe", Provider: "stripe", Verdict: "rejected"}
+	recent1 := Event{ReceivedAt: cutoff, Path: "/hook/github", Provider: "github", Verdict: "accepted"}
+	recent2 := Event{ReceivedAt: cutoff + 100, Path: "/hook/github", Provider: "github", Verdict: "accepted"}
+	if err := st.InsertEvents([]Event{old1, old2, recent1, recent2}); err != nil {
+		t.Fatalf("insert events: %v", err)
+	}
+	if err := st.UpsertRollups([]RollupDelta{{Hour: cutoff / 1000 / 3600, Provider: "stripe", Verdict: "accepted", N: 1}}); err != nil {
+		t.Fatalf("upsert rollup: %v", err)
+	}
+
+	deleted, err := st.DeleteEventsOlderThan(cutoff)
+	if err != nil {
+		t.Fatalf("delete events older than: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("deleted = %d, want 2", deleted)
+	}
+
+	n, err := st.CountEvents()
+	if err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("remaining count = %d, want 2", n)
+	}
+
+	remaining, err := st.ListEvents(EventFilter{}, 10)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	for _, e := range remaining {
+		if e.ReceivedAt < cutoff {
+			t.Fatalf("found stale event that should have been pruned: %+v", e)
+		}
+	}
+
+	rollupN, err := st.RollupCount(cutoff/1000/3600, "stripe", "accepted")
+	if err != nil {
+		t.Fatalf("rollup count: %v", err)
+	}
+	if rollupN != 1 {
+		t.Fatalf("event_rollups was touched by DeleteEventsOlderThan: rollup n = %d, want 1", rollupN)
+	}
+}
+
+func TestDeleteEventsOlderThanNoMatchesReturnsZero(t *testing.T) {
+	st := newTestStore(t)
+	if err := st.InsertEvents([]Event{{ReceivedAt: 1_700_000_000_000, Path: "/hook/stripe", Provider: "stripe", Verdict: "accepted"}}); err != nil {
+		t.Fatalf("insert events: %v", err)
+	}
+
+	deleted, err := st.DeleteEventsOlderThan(0)
+	if err != nil {
+		t.Fatalf("delete events older than: %v", err)
+	}
+	if deleted != 0 {
+		t.Fatalf("deleted = %d, want 0", deleted)
+	}
+}
