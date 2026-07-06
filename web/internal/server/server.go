@@ -72,6 +72,7 @@ func (s *Server) Router(staticFS embed.FS) http.Handler {
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /{$}", s.handleLanding)
+	mux.HandleFunc("GET /playground", s.handlePlayground)
 	mux.HandleFunc("GET /login", s.handleLoginForm)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("GET /signup", s.handleSignupForm)
