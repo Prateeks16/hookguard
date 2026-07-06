@@ -51,3 +51,41 @@ func TestLandingPageServesExpectedContent(t *testing.T) {
 		}
 	}
 }
+
+// Playground (client-side-only demo, no gateway/backend call) — same
+// content-regression + template.ParseFS-exercise pattern as the landing
+// page test above, plus a check that the "no live network request" honesty
+// disclaimer is actually present, since that's the one claim this page must
+// never silently drop.
+func TestPlaygroundPageServesExpectedContent(t *testing.T) {
+	_, ts := newTestServer(t, true)
+
+	resp, err := http.Get(ts.URL + "/playground")
+	if err != nil {
+		t.Fatalf("GET /playground: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /playground status = %d, want 200", resp.StatusCode)
+	}
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	body := string(raw)
+
+	want := []string{
+		"Try it without deploying anything.",
+		"never contacts a real HookGuard gateway",
+		"Stripe", "GitHub", "Shopify", "PayPal",
+		"signature mismatch", "stale timestamp", "cert host rejected",
+		"classifyReason",
+	}
+	for _, w := range want {
+		if !strings.Contains(body, w) {
+			t.Errorf("playground page missing expected content: %q", w)
+		}
+	}
+}

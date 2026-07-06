@@ -30,6 +30,13 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "landing.html", pageData{Version: s.Version})
 }
 
+// handlePlayground serves the client-side-only signature-verification demo
+// (no gateway call, no backend logic — the page's own JS holds the canned
+// scenario data). Public, same as the landing page.
+func (s *Server) handlePlayground(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "playground.html", pageData{Version: s.Version})
+}
+
 func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "login.html", pageData{Next: safeNext(r.URL.Query().Get("next"))})
 }
